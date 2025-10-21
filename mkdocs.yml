@@ -1,0 +1,10 @@
+site_name: OmniSpatial Docs
+site_url: https://omnispatial.org/docs
+repo_url: https://github.com/omnispatial/omnispatial
+theme:
+  name: material
+nav:
+  - Home: index.md
+  - Quickstart: quickstart.md
+  - API: api.md
+docs_dir: docs

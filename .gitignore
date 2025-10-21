@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.env
+.venv
+env/
+venv/
+build/
+dist/
+.eggs/
+*.egg-info/
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+poetry.lock
+
+# Jupyter
+.ipynb_checkpoints/
+
+# VSCode
+.vscode/
+
+# PyCharm / JetBrains
+.idea/
+*.iml
+out/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Node / Next.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+pnpm-lock.yaml
+.next/
+
+# Logs
+*.log
+
+# Coverage
+coverage.xml
+prompts.md
+
+# Runtime data
+*.pid
+
+# mkdocs build
+site/

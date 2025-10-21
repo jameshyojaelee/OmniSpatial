@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+title: OmniSpatial
+message: Please cite this software when using it in your research.
+abstract: Cross-vendor converter, validator, and viewer for spatial omics producing OME-NGFF Zarr and SpatialData bundles.
+authors:
+  - family-names: Doe
+    given-names: Jane
+    affiliation: OmniSpatial Contributors
+    orcid: https://orcid.org/0000-0000-0000-0000
+version: 0.1.0
+doi: 10.0000/placeholder-doi
+repository-code: https://github.com/omnispatial/omnispatial
+license: MIT
+keywords:
+  - spatial omics
+  - OME-NGFF
+  - SpatialData
+  - napari
+  - visualization
