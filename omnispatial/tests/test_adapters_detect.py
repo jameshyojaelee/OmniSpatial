@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import numpy as np
 import pandas as pd
 import pytest
+import tifffile
 
 from omnispatial.adapters import get_adapter
 from omnispatial.adapters.cosmx import CosMxAdapter
@@ -11,7 +15,8 @@ from omnispatial.adapters.merfish import MerfishAdapter
 from omnispatial.adapters.xenium import XeniumAdapter
 
 
-def _write_table(path) -> None:
+def _write_table(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     df = pd.DataFrame({"cell_id": ["a", "b"], "x": [0.0, 1.0], "y": [0.0, 1.0], "gene_a": [10, 20]})
     df.to_csv(path, index=False)
 
@@ -27,7 +32,33 @@ def _write_table(path) -> None:
 def test_adapter_detects_expected_structure(tmp_path, adapter_cls, filename) -> None:
     """Each adapter should recognise its canonical file layout."""
     file_path = tmp_path / filename
-    _write_table(file_path)
+    if adapter_cls is XeniumAdapter:
+        images_dir = tmp_path / "images"
+        images_dir.mkdir(parents=True, exist_ok=True)
+        tifffile.imwrite(images_dir / "synthetic.tif", np.ones((2, 2), dtype=np.uint16))
+        cells = pd.DataFrame(
+            {
+                "cell_id": ["a", "b"],
+                "x": [0.5, 1.5],
+                "y": [0.5, 1.5],
+                "area": [1.0, 1.0],
+                "polygon_wkt": [
+                    "POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))",
+                    "POLYGON ((1 1, 2 1, 2 2, 1 2, 1 1))",
+                ],
+            }
+        )
+        cells.to_csv(file_path, index=False)
+        matrix = pd.DataFrame(
+            {
+                "cell_id": ["a", "a", "b"],
+                "gene": ["G1", "G2", "G1"],
+                "count": [5, 3, 2],
+            }
+        )
+        matrix.to_csv(tmp_path / "matrix.csv", index=False)
+    else:
+        _write_table(file_path)
     adapter = adapter_cls()
     assert adapter.detect(tmp_path)
     dataset = adapter.read(tmp_path)

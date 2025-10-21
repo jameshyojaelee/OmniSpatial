@@ -57,4 +57,8 @@ Then open http://localhost:3000/ and paste an NGFF Zarr URL to explore the datas
 
 The Python toolkit maps diverse vendor exports into a canonical `SpatialDataset` model. It tracks `ImageLayer`, `LabelLayer`, and `TableLayer` objects bound to named coordinate frames with explicit 3×3 affine transforms, unit annotations, and global frame alignment. Geometries are exchanged as WKT via Shapely while tabular measurements reference AnnData-style observations and features. This shared representation powers converters, validators, and adapters.
 
+## Adapters
+
+- `xenium` – exercises the canonical model with a synthetic export comprising `cells.csv`, `matrix.csv`, and a tiny TIFF in `images/`. The adapter builds polygons, AnnData counts, and an intensity image to verify the pipeline end to end.
+
 See `CITATION.cff` for citation guidance and `LICENSE` for the MIT license.
