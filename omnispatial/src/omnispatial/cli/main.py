@@ -3,18 +3,29 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional, Type
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
 from omnispatial import __version__
+from omnispatial.adapters import SpatialAdapter, get_adapter
+from omnispatial.adapters.cosmx import CosMxAdapter
+from omnispatial.adapters.merfish import MerfishAdapter
+from omnispatial.adapters.xenium import XeniumAdapter
+from omnispatial.ngff import write_ngff, write_spatialdata
 from omnispatial.validate.core import ValidationReport
 
 console = Console()
 app = typer.Typer(help="Convert, validate, and view spatial omics assets with OmniSpatial.")
 view_app = typer.Typer(help="Viewer utilities for Napari and the web experience.")
+
+VENDOR_MAP: Dict[str, Type[SpatialAdapter]] = {
+    "xenium": XeniumAdapter,
+    "cosmx": CosMxAdapter,
+    "merfish": MerfishAdapter,
+}
 
 
 def _version_callback(value: bool) -> None:
@@ -40,20 +51,52 @@ def main(
 
 @app.command()
 def convert(
-    input_path: Path = typer.Argument(..., help="Input dataset or folder."),
-    output_path: Path = typer.Argument(..., help="Output workspace for NGFF and SpatialData."),
-    metadata: Optional[Path] = typer.Option(None, "--metadata", help="Optional metadata recipe in YAML."),
+    input_path: Path = typer.Argument(..., exists=True, help="Input dataset directory."),
+    out: Path = typer.Option(..., "--out", "-o", help="Output Zarr store path."),
+    vendor: Optional[str] = typer.Option(None, "--vendor", "-v", help="Vendor adapter to use."),
+    output_format: str = typer.Option(
+        "ngff",
+        "--format",
+        "-f",
+        case_sensitive=False,
+        help="Output format: 'ngff' or 'spatialdata'.",
+    ),
 ) -> None:
-    """Convert a spatial assay into OME-NGFF Zarr and SpatialData outputs."""
-    console.print("[bold green]Starting conversion pipeline[/bold green]")
-    console.log(f"Input path: {input_path}")
-    console.log(f"Output path: {output_path}")
-    if metadata:
-        console.log(f"Metadata recipe: {metadata}")
-    console.print(
-        "Conversion is not yet implemented. This placeholder ensures the CLI wiring is functional.",
-        style="yellow",
-    )
+    """Convert a spatial assay into NGFF or SpatialData bundles."""
+    vendor_key: Optional[str] = vendor.lower() if vendor else None
+    if vendor_key and vendor_key not in VENDOR_MAP:
+        console.print(f"[bold red]Unknown vendor '{vendor}'.[/bold red]")
+        raise typer.Exit(code=1)
+
+    adapter: SpatialAdapter
+    if vendor_key:
+        adapter = VENDOR_MAP[vendor_key]()
+    else:
+        detected = get_adapter(input_path)
+        if detected is None:
+            console.print("[bold red]Could not detect a compatible adapter for the input directory.[/bold red]")
+            raise typer.Exit(code=1)
+        adapter = detected
+        vendor_key = adapter.name
+
+    console.print(f"[bold green]Using adapter:[/bold green] {vendor_key}")
+    dataset = adapter.read(input_path)
+
+    out_format = output_format.lower()
+    if out_format not in {"ngff", "spatialdata"}:
+        console.print("[bold red]Unsupported format. Choose 'ngff' or 'spatialdata'.[/bold red]")
+        raise typer.Exit(code=1)
+
+    try:
+        if out_format == "ngff":
+            target = write_ngff(dataset, str(out))
+        else:
+            target = write_spatialdata(dataset, str(out))
+    except Exception as exc:  # pragma: no cover - error path
+        console.print(f"[bold red]Conversion failed:[/bold red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    console.print(f"[bold cyan]Wrote output:[/bold cyan] {target}")
 
 
 @app.command()

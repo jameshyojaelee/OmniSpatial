@@ -1,5 +1,5 @@
 """NGFF helpers for OmniSpatial."""
 
-from .writer import NGFFWriter
+from .writer import write_ngff, write_spatialdata
 
-__all__ = ["NGFFWriter"]
+__all__ = ["write_ngff", "write_spatialdata"]
