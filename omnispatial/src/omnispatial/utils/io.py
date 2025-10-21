@@ -5,15 +5,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable, List, Sequence, Tuple
 
+import numpy as np
 import pandas as pd
 import yaml
+import zarr
 from pandas import DataFrame
 from pandas.api.types import is_numeric_dtype
 from shapely import wkt
 from shapely.geometry.base import BaseGeometry
 import tifffile
-import zarr
-import numpy as np
 
 
 def load_yaml(path: Path) -> dict:
@@ -101,7 +101,16 @@ def read_image_any(path: Path) -> Tuple[np.ndarray, dict]:
         return np.asarray(data), {"format": "tiff"}
     if path.suffix.lower() in {".zarr"} or path.is_dir():
         store = zarr.open(path, mode="r")
-        data = np.asarray(store)
+        if hasattr(store, "shape"):
+            data = np.asarray(store)
+        else:
+            array_keys = list(getattr(store, "array_keys", lambda: [])())
+            if not array_keys:
+                array_keys = [key for key in store]  # type: ignore[index]
+            if not array_keys:
+                raise ValueError(f"No arrays found in Zarr store: {path}")
+            first_key = sorted(array_keys)[0]
+            data = np.asarray(store[first_key])
         return data, {"format": "zarr"}
     raise ValueError(f"Unsupported image format for: {path}")
 

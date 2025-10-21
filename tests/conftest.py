@@ -9,6 +9,9 @@ import numpy as np
 import pandas as pd
 import pytest
 import tifffile
+import zarr
+from shapely.affinity import translate
+from shapely.geometry import box as shapely_box
 
 
 def _write_image(base: Path, shape: Tuple[int, int], data: np.ndarray) -> Path:
@@ -69,4 +72,55 @@ def xenium_synthetic_dataset(tmp_path: Path) -> Path:
     ]
     _write_cells(dataset_path, cells)
     _write_matrix(dataset_path, matrix)
+    return dataset_path
+
+
+def _write_cosmx_image(base: Path) -> Path:
+    image_path = base / "image.zarr"
+    array = np.arange(16, dtype=np.uint16).reshape(1, 4, 4)
+    downsampled = array[:, ::2, ::2]
+    root = zarr.open_group(str(image_path), mode="w")
+    root.attrs["multiscales"] = [
+        {
+            "name": "scale_pyramid",
+            "datasets": [
+                {"path": "scale0"},
+                {"path": "scale1"},
+            ],
+        }
+    ]
+    root.create_dataset("scale0", data=array, chunks=array.shape)
+    root.create_dataset("scale1", data=downsampled, chunks=downsampled.shape)
+    return image_path
+
+
+@pytest.fixture()
+def cosmx_synthetic_dataset(tmp_path: Path) -> Path:
+    dataset_path = tmp_path / "cosmx_synth"
+    dataset_path.mkdir()
+    _write_cosmx_image(dataset_path)
+
+    region_a = shapely_box(0, 0, 1, 1)
+    region_b = shapely_box(0, 0, 1, 1)
+    region_b_offset = translate(region_b, xoff=0.5, yoff=1.0)
+
+    cells = pd.DataFrame(
+        {
+            "cell_id": ["cell_a", "cell_b"],
+            "centroid_x": [0.5, 0.5],
+            "centroid_y": [0.5, 0.5],
+            "polygon_wkt": [region_a.wkt, region_b_offset.wkt],
+            "region": ["R1", "R2"],
+        }
+    )
+    cells.to_parquet(dataset_path / "cells.parquet")
+
+    expr = pd.DataFrame(
+        {
+            "cell_id": ["cell_a", "cell_a", "cell_b"],
+            "target": ["T1", "T2", "T1"],
+            "count": [12, 7, 5],
+        }
+    )
+    expr.to_parquet(dataset_path / "expr.parquet")
     return dataset_path

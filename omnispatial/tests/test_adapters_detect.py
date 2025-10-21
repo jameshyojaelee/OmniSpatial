@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import tifffile
+import zarr
 
 from omnispatial.adapters import get_adapter
 from omnispatial.adapters.cosmx import CosMxAdapter
@@ -25,7 +26,7 @@ def _write_table(path: Path) -> None:
     ("adapter_cls", "filename"),
     [
         (XeniumAdapter, "cells.csv"),
-        (CosMxAdapter, "cosmx_spots.csv"),
+        (CosMxAdapter, "cells.parquet"),
         (MerfishAdapter, "merfish_transcripts.csv"),
     ],
 )
@@ -58,7 +59,33 @@ def test_adapter_detects_expected_structure(tmp_path, adapter_cls, filename) -> 
         )
         matrix.to_csv(tmp_path / "matrix.csv", index=False)
     else:
-        _write_table(file_path)
+        if adapter_cls is CosMxAdapter:
+            image_path = tmp_path / "image.zarr"
+            root = zarr.open_group(str(image_path), mode="w")
+            root.create_dataset("scale0", data=np.ones((1, 2, 2), dtype=np.uint16), chunks=(1, 2, 2))
+            cells = pd.DataFrame(
+                {
+                    "cell_id": ["c1", "c2"],
+                    "centroid_x": [0.0, 0.0],
+                    "centroid_y": [0.0, 0.0],
+                    "polygon_wkt": [
+                        "POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))",
+                        "POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))",
+                    ],
+                    "region": ["R1", "R2"],
+                }
+            )
+            cells.to_parquet(tmp_path / "cells.parquet")
+            expr = pd.DataFrame(
+                {
+                    "cell_id": ["c1", "c2"],
+                    "target": ["T1", "T1"],
+                    "count": [1, 1],
+                }
+            )
+            expr.to_parquet(tmp_path / "expr.parquet")
+        else:
+            _write_table(file_path)
     adapter = adapter_cls()
     assert adapter.detect(tmp_path)
     dataset = adapter.read(tmp_path)
