@@ -124,3 +124,29 @@ def cosmx_synthetic_dataset(tmp_path: Path) -> Path:
     )
     expr.to_parquet(dataset_path / "expr.parquet")
     return dataset_path
+
+
+@pytest.fixture()
+def merfish_synthetic_dataset(tmp_path: Path) -> Path:
+    dataset_path = tmp_path / "merfish_synth"
+    dataset_path.mkdir()
+    image = np.array(
+        [
+            [5, 10, 15, 20],
+            [10, 25, 35, 15],
+            [8, 18, 28, 38],
+            [2, 12, 22, 32],
+        ],
+        dtype=np.uint16,
+    )
+    tifffile.imwrite(dataset_path / "image.tif", image)
+    spots = pd.DataFrame(
+        {
+            "x": [0.4, 1.6, 2.4, 0.9],
+            "y": [0.5, 0.6, 1.8, 2.2],
+            "gene": ["G1", "G2", "G1", "G2"],
+            "intensity": [2.0, 3.0, 4.0, 5.0],
+        }
+    )
+    spots.to_csv(dataset_path / "spots.csv", index=False)
+    return dataset_path

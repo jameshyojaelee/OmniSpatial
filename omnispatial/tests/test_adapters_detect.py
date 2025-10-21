@@ -27,7 +27,7 @@ def _write_table(path: Path) -> None:
     [
         (XeniumAdapter, "cells.csv"),
         (CosMxAdapter, "cells.parquet"),
-        (MerfishAdapter, "merfish_transcripts.csv"),
+        (MerfishAdapter, "spots.csv"),
     ],
 )
 def test_adapter_detects_expected_structure(tmp_path, adapter_cls, filename) -> None:
@@ -84,6 +84,17 @@ def test_adapter_detects_expected_structure(tmp_path, adapter_cls, filename) -> 
                 }
             )
             expr.to_parquet(tmp_path / "expr.parquet")
+        elif adapter_cls is MerfishAdapter:
+            tifffile.imwrite(tmp_path / "image.tif", np.ones((4, 4), dtype=np.uint16))
+            spots = pd.DataFrame(
+                {
+                    "x": [0.5, 1.5, 2.5, 0.8],
+                    "y": [0.5, 0.6, 1.8, 2.1],
+                    "gene": ["G1", "G2", "G1", "G2"],
+                    "intensity": [1.0, 2.0, 3.0, 4.0],
+                }
+            )
+            spots.to_csv(tmp_path / "spots.csv", index=False)
         else:
             _write_table(file_path)
     adapter = adapter_cls()
