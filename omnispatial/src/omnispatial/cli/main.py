@@ -11,10 +11,12 @@ import typer
 from rich.console import Console
 
 from omnispatial import __version__
-from omnispatial.adapters import SpatialAdapter, get_adapter
-from omnispatial.adapters.cosmx import CosMxAdapter
-from omnispatial.adapters.merfish import MerfishAdapter
-from omnispatial.adapters.xenium import XeniumAdapter
+from omnispatial.adapters import (
+    SpatialAdapter,
+    get_adapter,
+    iter_adapters,
+    load_adapter_plugins,
+)
 from omnispatial.ngff import write_ngff, write_spatialdata
 from omnispatial.validate import (
     Severity,
@@ -50,11 +52,11 @@ def _log(event: str, **payload: object) -> None:
         details = " ".join(f"{key}={value}" for key, value in payload.items())
         console.log(f"{event} {details}" if details else event)
 
-VENDOR_MAP: Dict[str, Type[SpatialAdapter]] = {
-    "xenium": XeniumAdapter,
-    "cosmx": CosMxAdapter,
-    "merfish": MerfishAdapter,
-}
+
+def _adapter_registry() -> Dict[str, Type[SpatialAdapter]]:
+    """Return a mapping of adapter names to their classes."""
+    load_adapter_plugins()
+    return {adapter_cls.name: adapter_cls for adapter_cls in iter_adapters()}
 
 
 def _version_callback(value: bool) -> None:
@@ -100,18 +102,23 @@ def convert(
 ) -> None:
     """Convert a spatial assay into NGFF or SpatialData bundles."""
     _configure_logging(verbose, log_json)
+    registry = _adapter_registry()
+    vendor_choices = ", ".join(sorted(registry))
     vendor_key: Optional[str] = vendor.lower() if vendor else None
-    if vendor_key and vendor_key not in VENDOR_MAP:
-        console.print(f"[bold red]Unknown vendor '{vendor}'.[/bold red]")
+    if vendor_key and vendor_key not in registry:
+        console.print(f"[bold red]Unknown vendor '{vendor}'.[/bold red] Available adapters: {vendor_choices}")
         raise typer.Exit(code=1)
 
     adapter: SpatialAdapter
     if vendor_key:
-        adapter = VENDOR_MAP[vendor_key]()
+        adapter = registry[vendor_key]()
     else:
         detected = get_adapter(input_path)
         if detected is None:
-            console.print("[bold red]Could not detect a compatible adapter for the input directory.[/bold red]")
+            console.print(
+                "[bold red]Could not detect a compatible adapter for the input directory.[/bold red] "
+                f"Available adapters: {vendor_choices}"
+            )
             raise typer.Exit(code=1)
         adapter = detected
         vendor_key = adapter.name

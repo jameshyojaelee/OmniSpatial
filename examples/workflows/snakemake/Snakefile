@@ -1,0 +1,69 @@
+from pathlib import Path
+
+configfile: "config.yaml"
+
+FORMAT = config.get("format", "ngff")
+BUNDLE_SUFFIX = "sdata.zarr" if FORMAT == "spatialdata" else "ngff.zarr"
+OUTPUT_DIR = Path(config.get("output_dir", "build"))
+REPORT_DIR = Path(config.get("report_dir", OUTPUT_DIR / "reports"))
+SAMPLES = config.get("samples", {})
+
+if not SAMPLES:
+    raise ValueError("config.yaml must define at least one entry under 'samples'.")
+
+bundle_targets = [OUTPUT_DIR / f"{sample}.{BUNDLE_SUFFIX}" for sample in SAMPLES]
+report_targets = [REPORT_DIR / f"{sample}.validation.json" for sample in SAMPLES] if config.get("validate") else []
+
+
+def sample_args(sample: str) -> str:
+    sample_cfg = SAMPLES[sample]
+    flags = []
+    vendor = sample_cfg.get("vendor", config.get("vendor"))
+    if vendor:
+        flags.append(f"--vendor {vendor}")
+    for key in ("image_chunks", "label_chunks"):
+        value = config.get(key)
+        if value:
+            option = key.replace("_", "-")
+            flags.append(f"--{option} {value}")
+    return " ".join(flags)
+
+
+rule all:
+    input:
+        bundle_targets + report_targets
+
+
+rule convert:
+    input:
+        dataset=lambda wildcards: Path(SAMPLES[wildcards.sample]["input"]).resolve()
+    output:
+        bundle=lambda wildcards: OUTPUT_DIR / f"{wildcards.sample}.{BUNDLE_SUFFIX}"
+    params:
+        extra=lambda wildcards: sample_args(wildcards.sample)
+    shell:
+        (
+            "python {workflow.basedir}/../scripts/run_omnispatial.py convert "
+            "--input {input.dataset} "
+            "--output {output.bundle} "
+            "--format {FORMAT} "
+            "{params.extra}"
+        )
+
+
+if config.get("validate"):
+
+    rule validate:
+        input:
+            bundle=rules.convert.output.bundle
+        output:
+            report=lambda wildcards: REPORT_DIR / f"{wildcards.sample}.validation.json"
+        params:
+            fmt=config.get("validation_format", FORMAT)
+        shell:
+            (
+                "python {workflow.basedir}/../scripts/run_omnispatial.py validate "
+                "--bundle {input.bundle} "
+                "--format {params.fmt} "
+                "--emit-json > {output.report}"
+            )

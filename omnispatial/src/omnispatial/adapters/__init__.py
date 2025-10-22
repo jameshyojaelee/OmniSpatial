@@ -7,6 +7,7 @@ from .registry import (
     available_adapters,
     get_adapter,
     iter_adapters,
+    load_adapter_plugins,
     register_adapter,
 )
 
@@ -17,5 +18,6 @@ __all__ = [
     "available_adapters",
     "get_adapter",
     "iter_adapters",
+    "load_adapter_plugins",
     "register_adapter",
 ]

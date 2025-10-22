@@ -1,0 +1,13 @@
+format: ngff
+vendor:
+validate: false
+validation_format:
+output_dir: build
+report_dir: build/reports
+image_chunks:
+label_chunks:
+samples:
+  sampleA:
+    input: /data/example/sampleA
+  sampleB:
+    input: /data/example/sampleB

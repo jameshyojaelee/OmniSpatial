@@ -17,3 +17,12 @@ poetry run jupyter lab ../examples/omnispatial_end_to_end.ipynb
 ```
 
 Each cell is annotated with comments explaining the workflow and can be adapted for automated testing or demonstrations.
+
+## Workflow Templates
+
+Reusable Nextflow and Snakemake templates live under `examples/workflows/` and call the shared `omnispatial.api` module via `scripts/run_omnispatial.py`.
+
+- `examples/workflows/nextflow/` contains a DSL2 pipeline with modular conversion and validation processes. Configure `params.samples` to point at datasets and optionally set `params.vendor`, `params.validate`, and chunking parameters.
+- `examples/workflows/snakemake/` ships a `Snakefile` and `config.yaml` that can be customised per sample. Enable validation by setting `validate: true` in the config.
+
+Both templates work against local checkouts or the published container image, making it easy to embed OmniSpatial in larger orchestration stacks.

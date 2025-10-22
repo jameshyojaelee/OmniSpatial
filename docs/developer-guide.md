@@ -40,6 +40,17 @@ Adapters registered with the decorator automatically participate in CLI detectio
 poetry run omnispatial convert data_dir --out bundle.zarr --vendor my_vendor
 ```
 
+### Optional plugin packaging
+
+To distribute an adapter separately from the core package, publish it as a namespace package under `omnispatial_adapters.*` and expose an entry point in the `omnispatial.adapters` group:
+
+```toml
+[tool.poetry.plugins."omnispatial.adapters"]
+my_vendor = "omnispatial_adapters.my_vendor:MyAdapter"
+```
+
+Namespace packages allow multiple adapters to coexist without bundling everything in the main wheel. When the plugin is installed, OmniSpatial discovers it automatically via the entry-point loader.
+
 ## 3. Add tests
 
 Create property or regression tests under `omnispatial/tests/` to:
@@ -57,6 +68,8 @@ Update `docs/architecture.md` or add a dedicated section describing the new adap
 Once tests and documentation pass, push to a feature branch and open a pull request. On merge to `main`:
 
 - CI builds the wheel, validates the docs, and prepares artifacts.
+- Docker images are published to GHCR (`ghcr.io/<owner>/omnispatial`) alongside release builds.
 - Tags matching `v*` trigger automatic publishing to PyPI and redeploy the GitHub Pages documentation.
+- GitHub releases are populated from the corresponding `CHANGELOG.md` section.
 
 For major updates, bump the version via `poetry version`, run `tools/update_citation.py --version X.Y.Z`, and update `CHANGELOG.md` before tagging.

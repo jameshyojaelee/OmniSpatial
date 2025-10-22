@@ -6,15 +6,15 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Iterable, List, Sequence, Tuple
 
+import numpy as np
 import pandas as pd
+import tifffile
 import yaml
 import zarr
-import numpy as np
 from pandas import DataFrame
 from pandas.api.types import is_numeric_dtype
 from shapely import wkt
 from shapely.geometry.base import BaseGeometry
-import tifffile
 
 
 def load_yaml(path: Path) -> dict:
@@ -109,10 +109,18 @@ def read_image_any(path: Path) -> Tuple[np.ndarray, dict]:
     """Load a TIFF or Zarr array and return the numpy data and metadata."""
     if not path.exists():
         raise FileNotFoundError(f"Image resource not found: {path}")
-    if path.suffix.lower() in {".tif", ".tiff"}:
+    suffix = path.suffix.lower()
+    if suffix in {".tif", ".tiff"}:
         data = tifffile.imread(path)
         return np.asarray(data), {"format": "tiff"}
-    if path.suffix.lower() in {".zarr"} or path.is_dir():
+    if suffix in {".png", ".jpg", ".jpeg"}:
+        try:
+            import imageio.v3 as iio
+        except Exception as exc:  # pragma: no cover - optional dependency edge case
+            raise RuntimeError("Reading PNG/JPEG images requires the 'imageio' extra.") from exc
+        data = iio.imread(path)
+        return np.asarray(data), {"format": suffix.lstrip(".")}
+    if suffix in {".zarr"} or path.is_dir():
         store = zarr.open(path, mode="r")
         if hasattr(store, "shape"):
             data = np.asarray(store)

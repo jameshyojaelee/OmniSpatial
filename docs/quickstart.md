@@ -60,3 +60,29 @@ pnpm dev
 Open http://localhost:3000 and paste `http://localhost:8000/xenium_ngff.zarr` to stream the dataset with overlays.
 
 The [example notebook](../examples/omnispatial_end_to_end.ipynb) stitches all steps together programmatically and is ideal for reproducible demos or testing.
+
+## 7. Use the Python API
+
+For scripted workflows you can call the high-level API directly:
+
+```python
+from omnispatial import api
+
+result = api.convert("/data/cosmx", "cosmx_bundle.zarr", vendor="cosmx-public")
+api.validate(result.output_path, output_format=result.format)
+```
+
+Async variants (`convert_async`, `validate_async`) integrate smoothly with asyncio-based pipelines.
+
+## 8. Run with Docker
+
+An official image published to GHCR bundles the CLI, Napari plugin, and documentation assets:
+
+```bash
+docker run --rm \
+  -v /data:/data \
+  ghcr.io/omnispatial/omnispatial:latest \
+  convert /data/cosmx --out /data/cosmx_ngff.zarr --vendor cosmx-public
+```
+
+Mount input/output volumes as required. The image also ships the workflow templates under `/opt/omnispatial/examples`.

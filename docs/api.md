@@ -5,6 +5,13 @@
 - `SampleMetadata` – Pydantic model describing assays.
 - `ConversionPipeline` – High-level orchestration entry point.
 
+## `omnispatial.api`
+
+- `convert` / `convert_async` – Invoke adapter-driven conversions programmatically, returning a `ConversionResult` with the emitted bundle path.
+- `validate` / `validate_async` – Validate NGFF or SpatialData bundles and receive a structured `ValidationReport`.
+- `available_adapter_names` – Enumerate built-in and plugin-supplied adapters discovered via entry points.
+- `AdapterNotFoundError`, `ConversionResult` – Convenience types surfaced by the high-level API.
+
 ## `omnispatial.validate`
 
 - `ValidationReport` – Pydantic report surfaced by the CLI and validation API.
