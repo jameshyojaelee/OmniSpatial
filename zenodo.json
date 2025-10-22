@@ -1,0 +1,15 @@
+{
+  "title": "OmniSpatial",
+  "description": "Cross-vendor converter, validator, and viewer for spatial omics datasets.",
+  "creators": [
+    {
+      "name": "Doe, Jane",
+      "orcid": "0000-0000-0000-0000",
+      "affiliation": "OmniSpatial Contributors"
+    }
+  ],
+  "keywords": ["spatial omics", "OME-NGFF", "SpatialData", "napari", "validation"],
+  "license": "MIT",
+  "upload_type": "software",
+  "version": "0.1.0"
+}

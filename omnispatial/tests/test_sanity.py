@@ -23,5 +23,6 @@ def test_registry_matches() -> None:
 
 def test_validation_report_example() -> None:
     """Validation report factory returns populated items."""
-    report = ValidationReport.example(bundle=Path("bundle"), schema_path=None)
-    assert report.items
+    report = ValidationReport.example(bundle=Path("bundle"))
+    assert report.ok
+    assert report.issues

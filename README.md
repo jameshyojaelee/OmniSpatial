@@ -22,6 +22,7 @@ pnpm dev
 ```
 
 Then open http://localhost:3000/ and paste an NGFF Zarr URL to explore the dataset.
+If you generated a bundle locally, serve it over HTTP (for example `python -m http.server` from the parent directory) and point the viewer at the resulting `http://localhost:8000/your_bundle.zarr` URL.
 
 ## Architecture
 
@@ -62,3 +63,9 @@ The Python toolkit maps diverse vendor exports into a canonical `SpatialDataset`
 - `xenium` – exercises the canonical model with a synthetic export comprising `cells.csv`, `matrix.csv`, and a tiny TIFF in `images/`. The adapter builds polygons, AnnData counts, and an intensity image to verify the pipeline end to end.
 
 See `CITATION.cff` for citation guidance and `LICENSE` for the MIT license.
+
+## Documentation
+
+- In-depth guides live under [`docs/`](docs/) and are published automatically to GitHub Pages.
+- Run `poetry run mkdocs serve --config-file ../mkdocs.yml --site-dir ../site` from the `omnispatial` directory to preview locally.
+- The [`examples`](examples/) directory contains a reproducible end-to-end notebook.

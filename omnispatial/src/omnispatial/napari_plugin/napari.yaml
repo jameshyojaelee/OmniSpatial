@@ -1,0 +1,19 @@
+name: omnispatial
+display_name: OmniSpatial Plugin
+contributions:
+  commands:
+    - id: omnispatial.reader
+      title: OmniSpatial Bundle Reader
+      python_name: omnispatial.napari_plugin:omnispatial_reader
+    - id: omnispatial.inspector
+      title: OmniSpatial Table Inspector
+      python_name: omnispatial.napari_plugin:OmniSpatialDock
+  readers:
+    - command: omnispatial.reader
+      name: OmniSpatial Reader
+      filename_patterns:
+        - "*.zarr"
+      accepts_directories: true
+  widgets:
+    - command: omnispatial.inspector
+      display_name: OmniSpatial Inspector

@@ -7,7 +7,6 @@ from typing import Dict, Optional, Type
 
 import typer
 from rich.console import Console
-from rich.table import Table
 
 from omnispatial import __version__
 from omnispatial.adapters import SpatialAdapter, get_adapter
@@ -15,7 +14,12 @@ from omnispatial.adapters.cosmx import CosMxAdapter
 from omnispatial.adapters.merfish import MerfishAdapter
 from omnispatial.adapters.xenium import XeniumAdapter
 from omnispatial.ngff import write_ngff, write_spatialdata
-from omnispatial.validate.core import ValidationReport
+from omnispatial.validate import (
+    Severity,
+    ValidationIOError,
+    ValidationReport as ValidationResult,
+    validate_bundle,
+)
 
 console = Console()
 app = typer.Typer(help="Convert, validate, and view spatial omics assets with OmniSpatial.")
@@ -102,17 +106,60 @@ def convert(
 @app.command()
 def validate(
     bundle: Path = typer.Argument(..., help="Path to a SpatialData or NGFF bundle."),
-    schema: Optional[Path] = typer.Option(None, help="Custom validation schema in JSON Schema format."),
+    output_format: str = typer.Option(
+        "ngff",
+        "--format",
+        "-f",
+        case_sensitive=False,
+        help="Bundle format: 'ngff' or 'spatialdata'.",
+    ),
+    json_report: Optional[Path] = typer.Option(None, "--json", help="Write machine-readable report to a JSON file."),
 ) -> None:
-    """Validate a bundle and display a structured report."""
-    report: ValidationReport = ValidationReport.example(bundle=bundle, schema_path=schema)
-    table = Table(title="Validation Summary")
-    table.add_column("Check")
-    table.add_column("Status")
-    table.add_column("Details")
-    for item in report.items:
-        table.add_row(item.name, item.status, item.detail)
-    console.print(table)
+    """Validate a bundle and emit a machine-readable report."""
+    fmt = output_format.lower()
+    if fmt not in {"ngff", "spatialdata"}:
+        console.print(f"[bold red]Unsupported format '{output_format}'.[/bold red]")
+        raise typer.Exit(code=2)
+
+    try:
+        report: ValidationResult = validate_bundle(bundle, fmt)
+    except ValidationIOError as exc:
+        console.print(f"[bold red]Unable to read bundle:[/bold red] {exc}")
+        raise typer.Exit(code=2) from exc
+    except Exception as exc:  # pragma: no cover - unexpected failure
+        console.print(f"[bold red]Validation failed unexpectedly:[/bold red] {exc}")
+        raise typer.Exit(code=2) from exc
+
+    if json_report is not None:
+        json_report.parent.mkdir(parents=True, exist_ok=True)
+        json_report.write_text(report.model_dump_json(indent=2))
+
+    severity_style = {
+        Severity.INFO: "cyan",
+        Severity.WARNING: "yellow",
+        Severity.ERROR: "red",
+    }
+
+    if report.issues:
+        console.print("[bold]Validation Issues:[/bold]")
+        for issue in report.issues:
+            style = severity_style.get(issue.severity, "white")
+            console.print(
+                f"{issue.severity.value.upper()} {issue.code}: {issue.message} ({issue.path})",
+                style=style,
+            )
+    else:
+        console.print("[bold green]No issues detected.[/bold green]")
+
+    summary_parts = ", ".join(f"{key}={value}" for key, value in report.summary.items())
+    console.print(f"[bold cyan]Summary:[/bold cyan] {summary_parts}")
+
+    if report.ok:
+        console.print("[bold green]Validation passed.[/bold green]")
+        raise typer.Exit(code=0)
+
+    console.print("[bold red]Validation completed with errors.[/bold red]")
+    raise typer.Exit(code=1)
 
 
 @view_app.command("napari")

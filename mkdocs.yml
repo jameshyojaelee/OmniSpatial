@@ -4,7 +4,11 @@ repo_url: https://github.com/omnispatial/omnispatial
 theme:
   name: material
 nav:
-  - Home: index.md
-  - Quickstart: quickstart.md
+  - Overview: index.md
+  - Quickstart:
+      - CLI Quickstart: quickstart.md
+      - Examples: examples.md
+  - Architecture: architecture.md
+  - Developer Guide: developer-guide.md
   - API: api.md
 docs_dir: docs

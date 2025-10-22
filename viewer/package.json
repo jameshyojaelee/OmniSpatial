@@ -9,10 +9,13 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@deck.gl/core": "^8.9.31",
+    "@deck.gl/layers": "^8.9.31",
     "@mui/material": "^5.15.4",
     "@vivjs/layers": "^0.15.5",
     "@vivjs/loaders": "^0.15.5",
     "@vivjs/viewer": "^0.15.5",
+    "@terraformer/wkt-parser": "^2.2.1",
     "next": "13.5.6",
     "react": "18.2.0",
     "react-dom": "18.2.0",
@@ -20,6 +23,7 @@
     "zarr": "^0.8.0"
   },
   "devDependencies": {
+    "@types/geojson": "7946.0.10",
     "@types/node": "20.10.5",
     "@types/react": "18.2.37",
     "@types/react-dom": "18.2.15",

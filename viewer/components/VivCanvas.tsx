@@ -1,6 +1,16 @@
 import { Box, CircularProgress, Typography } from "@mui/material";
+import { GeoJsonLayer, ScatterplotLayer } from "@deck.gl/layers";
+import type { Feature, FeatureCollection } from "geojson";
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import {
+  ForwardedRef,
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 
 const VivViewer = dynamic(async () => {
   const mod = await import("@vivjs/viewer");
@@ -8,22 +18,47 @@ const VivViewer = dynamic(async () => {
 }, { ssr: false });
 
 type LoadedViewerState = {
-  layers: unknown[];
+  imageLayer: unknown | null;
   views: unknown[];
   initialViewState: Record<string, unknown>;
   layerConfig: Record<string, unknown>;
   loader: unknown;
 };
 
+export type ViewerFeature = Feature & {
+  properties: Record<string, unknown>;
+};
+
 type VivCanvasProps = {
   url: string;
   overlayText: string;
+  features: ViewerFeature[];
+  showImage: boolean;
+  showFeatures: boolean;
+  colorBy: string | null;
+  colorMap: Record<string, string>;
+};
+export type VivCanvasHandle = {
+  capturePng: () => string | null;
 };
 
-export function VivCanvas({ url, overlayText }: VivCanvasProps): JSX.Element {
+function hexToRgbaTuple(color: string, alpha = 200): [number, number, number, number] {
+  const hex = color.replace("#", "");
+  const bigint = parseInt(hex, 16);
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return [r, g, b, alpha];
+}
+
+const VivCanvas = (
+  { url, overlayText, features, showImage, showFeatures, colorBy, colorMap }: VivCanvasProps,
+  ref: ForwardedRef<VivCanvasHandle>
+): JSX.Element => {
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [state, setState] = useState<LoadedViewerState | null>(null);
+  const viewerRef = useRef<{ deck?: { canvas?: HTMLCanvasElement; gl?: WebGLRenderingContext } } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,7 +90,7 @@ export function VivCanvas({ url, overlayText }: VivCanvasProps): JSX.Element {
         });
         if (!cancelled) {
           setState({
-            layers: [layer],
+            imageLayer: layer,
             views,
             initialViewState: { [detailView.id]: initialViewState },
             layerConfig,
@@ -75,6 +110,81 @@ export function VivCanvas({ url, overlayText }: VivCanvasProps): JSX.Element {
       cancelled = true;
     };
   }, [url]);
+
+  const featureLayer = useMemo(() => {
+    if (!showFeatures || features.length === 0) {
+      return null;
+    }
+    const collection: FeatureCollection = { type: "FeatureCollection", features };
+    if (!colorBy) {
+      return new GeoJsonLayer({
+        id: "omnispatial-features",
+        data: collection,
+        filled: false,
+        stroked: true,
+        getLineColor: [255, 255, 255, 200],
+        lineWidthMinPixels: 1,
+        pickable: true
+      });
+    }
+    const getColor = (properties: Record<string, unknown>) => {
+      const value = properties[colorBy];
+      const key = value === undefined || value === null ? "__missing" : String(value);
+      const color = colorMap[key] ?? "#4dabf7";
+      return hexToRgbaTuple(color, 160);
+    };
+    const geometries = features.map((feature) => feature.geometry?.type ?? "");
+    const onlyPoints = geometries.every((type) => type === "Point");
+    if (onlyPoints) {
+      return new ScatterplotLayer({
+        id: "omnispatial-points",
+        data: features,
+        getPosition: (d: Feature) => d.geometry?.type === "Point" ? d.geometry.coordinates : [0, 0],
+        getFillColor: (d: Feature) => getColor((d.properties as Record<string, unknown>) ?? {}),
+        getRadius: 8,
+        radiusUnits: "pixels",
+        pickable: true,
+        stroked: false,
+        updateTriggers: {
+          getFillColor: [colorBy, colorMap]
+        }
+      });
+    }
+    return new GeoJsonLayer({
+      id: "omnispatial-polygons",
+      data: collection,
+      getFillColor: (d: Feature) => getColor((d.properties as Record<string, unknown>) ?? {}),
+      getLineColor: [255, 255, 255, 200],
+      lineWidthMinPixels: 1,
+      pickable: true,
+      filled: true,
+      stroked: true,
+      updateTriggers: {
+        getFillColor: [colorBy, colorMap]
+      }
+    });
+  }, [features, showFeatures, colorBy, colorMap]);
+
+  const layers = useMemo(() => {
+    const layerList: unknown[] = [];
+    if (showImage && state?.imageLayer) {
+      layerList.push(state.imageLayer);
+    }
+    if (featureLayer) {
+      layerList.push(featureLayer);
+    }
+    return layerList;
+  }, [showImage, state?.imageLayer, featureLayer]);
+
+  useImperativeHandle(ref, () => ({
+    capturePng: () => {
+      const canvas = viewerRef.current?.deck?.canvas ?? viewerRef.current?.deck?.gl?.canvas ?? null;
+      if (!canvas) {
+        return null;
+      }
+      return canvas.toDataURL("image/png");
+    }
+  }), []);
 
   const overlay = useMemo(() => (
     <Box
@@ -119,11 +229,17 @@ export function VivCanvas({ url, overlayText }: VivCanvasProps): JSX.Element {
       <VivViewer
         loader={state.loader as never}
         views={state.views as never}
-        layers={state.layers as never}
+        layers={layers as never}
         layerConfig={state.layerConfig as never}
         initialViewState={state.initialViewState as never}
+        viewerRef={viewerRef as never}
       />
       {overlay}
     </Box>
   );
-}
+};
+
+const ForwardedVivCanvas = forwardRef(VivCanvas);
+ForwardedVivCanvas.displayName = "VivCanvas";
+
+export default ForwardedVivCanvas;
