@@ -73,9 +73,45 @@ jobs:
         working-directory: omnispatial
         run: poetry run pytest --cov
 
-  build:
+  performance:
     runs-on: ubuntu-latest
     needs: [lint, typecheck, test]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - name: Install Poetry
+        run: |
+          pip install --upgrade pip
+          pip install poetry
+      - name: Install project dependencies
+        working-directory: omnispatial
+        run: poetry install --with dev
+      - uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+      - name: Install viewer dependencies
+        run: |
+          corepack enable
+          pnpm --dir viewer install
+      - name: GeoJSON stress test
+        run: |
+          mkdir -p benchmark-artifacts
+          pnpm --dir viewer run stress:geojson --features=200000 --report ../benchmark-artifacts/geojson-stress.json
+      - name: Enforce GeoJSON budget
+        run: |
+          python tools/benchmarks/check_budget.py benchmark-artifacts/geojson-stress.json --metric durationMs --max 12000
+      - name: Viv tile stress test
+        run: |
+          python tools/benchmarks/viv_stress.py benchmark-artifacts/viv-synthetic.zarr --synthetic 1024 --samples 64 --report benchmark-artifacts/viv-stress.json
+      - name: Enforce Viv budget
+        run: |
+          python tools/benchmarks/check_budget.py benchmark-artifacts/viv-stress.json --metric avg_mb_per_s --min 5
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck, test, performance]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
@@ -100,7 +136,7 @@ jobs:
 
   docs:
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, test]
+    needs: [lint, typecheck, test, performance]
     permissions:
       contents: read
       pages: write

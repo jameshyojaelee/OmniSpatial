@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "stress:geojson": "tsx scripts/geojson-stress.ts"
   },
   "dependencies": {
     "@deck.gl/core": "^8.9.31",
@@ -29,7 +30,8 @@
     "@types/react-dom": "18.2.15",
     "eslint": "8.54.0",
     "eslint-config-next": "13.5.6",
-    "typescript": "5.3.3"
+    "typescript": "5.3.3",
+    "tsx": "^4.7.0"
   },
   "packageManager": "pnpm@8.10.5"
 }

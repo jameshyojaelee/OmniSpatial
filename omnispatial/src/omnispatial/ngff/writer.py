@@ -47,12 +47,40 @@ def _rasterize_labels(geometries: Iterable[str], shape: Tuple[int, int]) -> np.n
     return mask
 
 
-def _resolve_chunks(shape: Tuple[int, ...], request: Optional[Tuple[int, ...]], min_chunk: int = 64) -> Tuple[int, ...]:
+def _resolve_chunks(
+    shape: Tuple[int, ...],
+    request: Optional[Tuple[int, ...]],
+    *,
+    dtype_size: int,
+    min_chunk: int = 64,
+    target_bytes: int = 8 * 1024 * 1024,
+) -> Tuple[int, ...]:
     if request:
         return request
-    if len(shape) == 3:
-        return (1, min(min_chunk, shape[-2]), min(min_chunk, shape[-1]))
-    return tuple(min(min_chunk, dim) for dim in shape)
+
+    chunk = list(shape)
+    if len(shape) >= 3:
+        chunk[0] = 1
+    for axis, dim in enumerate(shape):
+        chunk[axis] = min(dim, min_chunk if axis >= len(shape) - 2 else dim)
+
+    def chunk_bytes() -> int:
+        total = 1
+        for value in chunk:
+            total *= max(1, value)
+        return total * dtype_size
+
+    while chunk_bytes() > target_bytes:
+        reduced = False
+        for axis in range(len(chunk) - 1, -1, -1):
+            if chunk[axis] > 1:
+                chunk[axis] = max(1, chunk[axis] // 2)
+                reduced = True
+                if chunk_bytes() <= target_bytes:
+                    break
+        if not reduced:
+            break
+    return tuple(max(1, value) for value in chunk)
 
 
 def _build_compressor(name: Optional[str], level: int) -> Optional[Blosc]:
@@ -96,7 +124,7 @@ def write_ngff(
         data, _ = read_image_any(Path(image.path))
         if data.ndim == 2:
             data = np.expand_dims(data, axis=0)
-        chunks = _resolve_chunks(data.shape, image_chunks)
+        chunks = _resolve_chunks(data.shape, image_chunks, dtype_size=data.dtype.itemsize)
         image_group = images_group.create_group(image.name)
         try:
             image_group.create_dataset(
@@ -107,7 +135,12 @@ def write_ngff(
                 compressor=compressor_obj,
             )
         except ValueError:
-            fallback_chunks = _resolve_chunks(data.shape, None, min_chunk=32)
+            fallback_chunks = _resolve_chunks(
+                data.shape,
+                None,
+                dtype_size=data.dtype.itemsize,
+                min_chunk=32,
+            )
             image_group.create_dataset(
                 "0",
                 data=data,
@@ -145,7 +178,12 @@ def write_ngff(
         for label in dataset.labels:
             mask = _rasterize_labels(label.geometries, first_image_shape)
             label_group = labels_group.create_group(label.name)
-            chunks = label_chunks or (min(128, mask.shape[0]), min(128, mask.shape[1]))
+            chunks = label_chunks or _resolve_chunks(
+                mask.shape,
+                None,
+                dtype_size=mask.dtype.itemsize,
+                min_chunk=128,
+            )
             try:
                 label_group.create_dataset(
                     "0",
@@ -155,7 +193,12 @@ def write_ngff(
                     compressor=compressor_obj,
                 )
             except ValueError:
-                fallback_chunks = (min(64, mask.shape[0]), min(64, mask.shape[1]))
+                fallback_chunks = _resolve_chunks(
+                    mask.shape,
+                    None,
+                    dtype_size=mask.dtype.itemsize,
+                    min_chunk=64,
+                )
                 label_group.create_dataset(
                     "0",
                     data=mask,

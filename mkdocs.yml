@@ -9,6 +9,8 @@ nav:
       - CLI Quickstart: quickstart.md
       - Examples: examples.md
   - Architecture: architecture.md
+  - Benchmarking: benchmarking.md
+  - Benchmark Dashboard: benchmark-dashboard.md
   - Developer Guide: developer-guide.md
   - API: api.md
 docs_dir: docs

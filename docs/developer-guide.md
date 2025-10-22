@@ -73,3 +73,15 @@ Once tests and documentation pass, push to a feature branch and open a pull requ
 - GitHub releases are populated from the corresponding `CHANGELOG.md` section.
 
 For major updates, bump the version via `poetry version`, run `tools/update_citation.py --version X.Y.Z`, and update `CHANGELOG.md` before tagging.
+
+## Benchmark dataset cache
+
+The benchmarking harness pulls large public datasets into a shared cache managed by `tools/datasets/fetch_datasets.py`. The script normalises directory structure, records checksums in `datasets/index.json`, and supports idempotent re-runs. Usage examples:
+
+```bash
+python -m tools.datasets.fetch_datasets list
+python -m tools.datasets.fetch_datasets visium_ffpe_breast --data-dir datasets
+python -m tools.datasets.fetch_datasets all --force --skip-extract
+```
+
+Archives are sourced from GEO for Visium FFPE, Slide-seqV2, and MERFISH megasets. Subsequent benchmarking stages assume the cache lives under `./datasets`; adjust `--data-dir` or set the `OMNISPATIAL_DATASETS` environment variable when running on shared storage.

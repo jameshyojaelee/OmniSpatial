@@ -43,6 +43,8 @@ mypy = "^1.7.1"
 pre-commit = "^3.5.0"
 mkdocs = "^1.5.3"
 mkdocs-material = "^9.5.2"
+psutil = "^5.9.8"
+pynvml = "^11.5.0"
 
 [tool.poetry.scripts]
 omnispatial = "omnispatial.cli.main:app"

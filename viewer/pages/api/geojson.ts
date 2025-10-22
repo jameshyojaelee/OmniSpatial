@@ -2,15 +2,17 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { HTTPStore, openArray, slice } from "zarr";
 import { parse as parseWkt } from "@terraformer/wkt-parser";
 
-type FeatureResponse = {
+export type FeatureResponse = {
   type: "FeatureCollection";
   features: GeoJSON.Feature[];
   columns: string[];
 };
 
 const CACHE = new Map<string, { timestamp: number; payload: FeatureResponse }>();
+const WKT_CACHE = new Map<string, GeoJSON.Geometry>();
 const CACHE_TTL_MS = 60 * 1000;
-const MAX_LIMIT = 2000;
+const parsedMax = Number.parseInt(process.env.GEOJSON_MAX_LIMIT ?? "2000", 10);
+const MAX_LIMIT = Number.isFinite(parsedMax) ? parsedMax : 2000;
 
 function assertHttpUrl(raw: string): void {
   let parsed: URL;
@@ -68,8 +70,13 @@ function geometryFromRow(row: Record<string, unknown>): GeoJSON.Geometry | null 
   const wkt = row["polygon_wkt"];
   if (typeof wkt === "string" && wkt.trim()) {
     try {
-      const geometry = parseWkt(wkt.trim());
-      return geometry as GeoJSON.Geometry;
+      const cached = WKT_CACHE.get(wkt);
+      if (cached) {
+        return cached;
+      }
+      const geometry = parseWkt(wkt.trim()) as GeoJSON.Geometry;
+      WKT_CACHE.set(wkt, geometry);
+      return geometry;
     } catch (error) {
       return null;
     }
@@ -85,25 +92,7 @@ function geometryFromRow(row: Record<string, unknown>): GeoJSON.Geometry | null 
   return null;
 }
 
-async function buildFeatureCollection(url: string, tableName?: string, limitParam?: string | string[]): Promise<FeatureResponse> {
-  assertHttpUrl(url);
-  const store = new HTTPStore(url, { fetch: fetch as unknown as typeof globalThis.fetch });
-  const hasTables = await store.containsItem("tables/.zgroup");
-  if (!hasTables) {
-    throw new Error("Bundle does not contain tables.");
-  }
-  const name = await getTableName(store, typeof tableName === "string" ? tableName : undefined);
-  const limitCandidate = Array.isArray(limitParam) ? limitParam[0] : limitParam;
-  const limit = Math.min(Number(limitCandidate) || MAX_LIMIT, MAX_LIMIT);
-  const columns = await resolveColumns(store, name);
-  if (!columns.length) {
-    throw new Error("No observation columns available.");
-  }
-  const obsPath = `tables/${name}/obs`;
-  const data: Record<string, unknown[]> = {};
-  for (const column of columns) {
-    data[column] = await readColumn(store, `${obsPath}/${column}`, limit);
-  }
+export function featureCollectionFromColumns(columns: string[], data: Record<string, unknown[]>): FeatureResponse {
   const firstColumn = columns[0];
   const rows = data[firstColumn]?.length ?? 0;
   const features: GeoJSON.Feature[] = [];
@@ -127,6 +116,30 @@ async function buildFeatureCollection(url: string, tableName?: string, limitPara
     features,
     columns
   } satisfies FeatureResponse;
+}
+
+export async function buildFeatureCollection(url: string, tableName?: string, limitParam?: string | string[]): Promise<FeatureResponse> {
+  assertHttpUrl(url);
+  const store = new HTTPStore(url, { fetch: fetch as unknown as typeof globalThis.fetch });
+  const hasTables = await store.containsItem("tables/.zgroup");
+  if (!hasTables) {
+    throw new Error("Bundle does not contain tables.");
+  }
+  const name = await getTableName(store, typeof tableName === "string" ? tableName : undefined);
+  const limitCandidate = Array.isArray(limitParam) ? limitParam[0] : limitParam;
+  const limit = Math.min(Number(limitCandidate) || MAX_LIMIT, MAX_LIMIT);
+  const columns = await resolveColumns(store, name);
+  if (!columns.length) {
+    throw new Error("No observation columns available.");
+  }
+  const obsPath = `tables/${name}/obs`;
+  const data: Record<string, unknown[]> = {};
+  await Promise.all(
+    columns.map(async (column) => {
+      data[column] = await readColumn(store, `${obsPath}/${column}`, limit);
+    })
+  );
+  return featureCollectionFromColumns(columns, data);
 }
 
 export default async function handler(request: NextApiRequest, response: NextApiResponse): Promise<void> {
