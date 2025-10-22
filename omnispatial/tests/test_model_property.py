@@ -6,6 +6,7 @@ from typing import Tuple
 
 import numpy as np
 import pandas as pd
+import pytest
 from hypothesis import given, strategies as st
 from shapely.geometry import box
 from shapely.geometry.base import BaseGeometry
@@ -14,6 +15,7 @@ from omnispatial.core.model import (
     AffineTransform,
     CoordinateFrame,
     LabelLayer,
+    ProvenanceMetadata,
     SpatialDataset,
     TableLayer,
 )
@@ -114,6 +116,11 @@ def polygon_dataset_strategy(draw: st.DrawFn) -> Tuple[SpatialDataset, float, in
         tables=[table_layer],
         frames={global_frame.name: global_frame, local_frame.name: local_frame},
         global_frame=global_frame.name,
+        provenance=ProvenanceMetadata(
+            adapter="test-adapter",
+            version="0.0-test",
+            source_files=["synthetic"]
+        ),
     )
     return dataset, polygon, rows
 
@@ -127,3 +134,26 @@ def test_polygon_roundtrip(data: Tuple[SpatialDataset, BaseGeometry, int]) -> No
     assert geometries[0].equals_exact(original_polygon, 1e-6)
     assert np.isclose(geometries[0].area, original_polygon.area)
     assert dataset.tables[0].cell_count == rows
+
+
+def test_spatial_dataset_requires_provenance() -> None:
+    global_frame = CoordinateFrame(
+        name="global",
+        axes=("x", "y", "1"),
+        units=("micrometer", "micrometer", "dimensionless"),
+    )
+    local_frame = CoordinateFrame(
+        name="local",
+        axes=("x", "y", "1"),
+        units=("micrometer", "micrometer", "dimensionless"),
+    )
+    transform = AffineTransform(matrix=IDENTITY, units="micrometer", source="local", target="global")
+    with pytest.raises(ValueError):
+        SpatialDataset(
+            images=[],
+            labels=[],
+            tables=[],
+            frames={"global": global_frame, "local": local_frame},
+            global_frame="global",
+            provenance=None,
+        )

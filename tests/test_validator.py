@@ -41,6 +41,7 @@ def test_validator_ok(xenium_synthetic_dataset: Path, tmp_path: Path, fmt: str) 
     assert data["ok"] is True
     assert data["summary"]["format"] == fmt
     assert data["summary"]["images"] >= 1
+    assert "provenance" in data["summary"]
 
 
 def test_validator_detects_missing_metadata(xenium_synthetic_dataset: Path, tmp_path: Path) -> None:

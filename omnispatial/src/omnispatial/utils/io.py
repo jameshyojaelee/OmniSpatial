@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 from typing import Iterable, List, Sequence, Tuple
 
-import numpy as np
 import pandas as pd
 import yaml
 import zarr
+import numpy as np
 from pandas import DataFrame
 from pandas.api.types import is_numeric_dtype
 from shapely import wkt
@@ -22,11 +23,14 @@ def load_yaml(path: Path) -> dict:
         return yaml.safe_load(handle) or {}
 
 
-def load_tabular_file(path: Path) -> DataFrame:
-    """Load a CSV, TSV, or Parquet file into a DataFrame with basic validation."""
-    if not path.exists():
-        raise FileNotFoundError(f"Tabular file does not exist: {path}")
-    suffix = path.suffix.lower()
+def _stat_signature(path: Path) -> Tuple[int, float]:
+    stat = path.stat()
+    return (stat.st_size, stat.st_mtime)
+
+
+@lru_cache(maxsize=32)
+def _read_tabular_cached(suffix: str, signature: Tuple[int, float], path_str: str) -> DataFrame:
+    path = Path(path_str)
     if suffix in {".csv", ".tsv"}:
         df = pd.read_csv(path)
     elif suffix in {".parquet", ".pq"}:
@@ -36,6 +40,15 @@ def load_tabular_file(path: Path) -> DataFrame:
     if df.empty:
         raise ValueError(f"Table at {path} is empty.")
     return df
+
+
+def load_tabular_file(path: Path) -> DataFrame:
+    """Load a CSV, TSV, or Parquet file into a DataFrame with basic validation."""
+    if not path.exists():
+        raise FileNotFoundError(f"Tabular file does not exist: {path}")
+    suffix = path.suffix.lower()
+    signature = _stat_signature(path)
+    return _read_tabular_cached(suffix, signature, str(path)).copy()
 
 
 def load_spatial_table(path: Path, coordinate_columns: Sequence[str] = ("x", "y")) -> DataFrame:

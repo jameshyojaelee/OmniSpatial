@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
+import logging
 from pathlib import Path
-from typing import Dict, Optional, Type
+from typing import Dict, Optional, Tuple, Type
 
 import typer
 from rich.console import Console
@@ -24,6 +26,29 @@ from omnispatial.validate import (
 console = Console()
 app = typer.Typer(help="Convert, validate, and view spatial omics assets with OmniSpatial.")
 view_app = typer.Typer(help="Viewer utilities for Napari and the web experience.")
+
+LOG = logging.getLogger("omnispatial")
+LOG_JSON = False
+
+
+def _configure_logging(verbosity: int, json_logs: bool) -> None:
+    global LOG_JSON
+    LOG_JSON = json_logs
+    level = logging.WARNING
+    if verbosity == 1:
+        level = logging.INFO
+    elif verbosity >= 2:
+        level = logging.DEBUG
+    logging.basicConfig(level=level, format="%(message)s")
+
+
+def _log(event: str, **payload: object) -> None:
+    if LOG_JSON:
+        record = {"event": event, **payload}
+        console.print_json(data=record)
+    else:
+        details = " ".join(f"{key}={value}" for key, value in payload.items())
+        console.log(f"{event} {details}" if details else event)
 
 VENDOR_MAP: Dict[str, Type[SpatialAdapter]] = {
     "xenium": XeniumAdapter,
@@ -65,8 +90,16 @@ def convert(
         case_sensitive=False,
         help="Output format: 'ngff' or 'spatialdata'.",
     ),
+    verbose: int = typer.Option(0, "--verbose", "-V", count=True, help="Increase log verbosity (repeatable)."),
+    log_json: bool = typer.Option(False, "--log-json", help="Emit JSON structured logs."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Run detection and validation without writing outputs."),
+    image_chunks: Optional[str] = typer.Option(None, help="Image chunk size as comma-separated values, e.g. 1,256,256."),
+    label_chunks: Optional[str] = typer.Option(None, help="Label chunk size as comma-separated values, e.g. 256,256."),
+    compressor: Optional[str] = typer.Option("zstd", help="Compression codec (zstd, lz4, zlib, snappy, none)."),
+    compression_level: int = typer.Option(5, help="Compression level (1-9)."),
 ) -> None:
     """Convert a spatial assay into NGFF or SpatialData bundles."""
+    _configure_logging(verbose, log_json)
     vendor_key: Optional[str] = vendor.lower() if vendor else None
     if vendor_key and vendor_key not in VENDOR_MAP:
         console.print(f"[bold red]Unknown vendor '{vendor}'.[/bold red]")
@@ -83,24 +116,46 @@ def convert(
         adapter = detected
         vendor_key = adapter.name
 
-    console.print(f"[bold green]Using adapter:[/bold green] {vendor_key}")
+    _log("adapter.selected", adapter=vendor_key)
     dataset = adapter.read(input_path)
+    _log("dataset.loaded", images=len(dataset.images), labels=len(dataset.labels), tables=len(dataset.tables))
 
     out_format = output_format.lower()
     if out_format not in {"ngff", "spatialdata"}:
         console.print("[bold red]Unsupported format. Choose 'ngff' or 'spatialdata'.[/bold red]")
         raise typer.Exit(code=1)
 
+    if dry_run:
+        _log("convert.dry_run", output=str(out), format=out_format)
+        return
+
+    def _parse_chunks(value: Optional[str], dims: int) -> Optional[Tuple[int, ...]]:
+        if not value:
+            return None
+        parts = value.split(",")
+        if len(parts) != dims:
+            raise typer.BadParameter(f"Expected {dims} comma-separated integers, received '{value}'.")
+        return tuple(int(part) for part in parts)
+
     try:
         if out_format == "ngff":
-            target = write_ngff(dataset, str(out))
+            img_chunks = _parse_chunks(image_chunks, 3)
+            lbl_chunks = _parse_chunks(label_chunks, 2)
+            target = write_ngff(
+                dataset,
+                str(out),
+                image_chunks=img_chunks,
+                label_chunks=lbl_chunks,
+                compressor=compressor,
+                compression_level=compression_level,
+            )
         else:
             target = write_spatialdata(dataset, str(out))
     except Exception as exc:  # pragma: no cover - error path
-        console.print(f"[bold red]Conversion failed:[/bold red] {exc}")
+        _log("convert.error", error=str(exc))
         raise typer.Exit(code=1) from exc
 
-    console.print(f"[bold cyan]Wrote output:[/bold cyan] {target}")
+    _log("convert.completed", output=target, format=out_format)
 
 
 @app.command()

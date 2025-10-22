@@ -101,12 +101,17 @@ class MerfishAdapter(SpatialAdapter):
         label_layer = self._build_label_layer(cells, source, transform, local_frame)
         table_layer = self._build_table_layer(base, cells, counts, transform, local_frame)
 
+        provenance = self.build_provenance(
+            sources=[path / SPOTS_FILE, image_path],
+            extra={"bins": list(polygons.keys())},
+        )
         return SpatialDataset(
             images=[image_layer],
             labels=[label_layer],
             tables=[table_layer],
             frames={global_frame.name: global_frame, local_frame.name: local_frame},
             global_frame=global_frame.name,
+            provenance=provenance,
         )
 
     @staticmethod

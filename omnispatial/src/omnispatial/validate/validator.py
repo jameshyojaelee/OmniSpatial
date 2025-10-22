@@ -35,6 +35,7 @@ class ValidationReport(BaseModel):
     ok: bool
     issues: List[ValidationIssue] = Field(default_factory=list)
     summary: Dict[str, Any] = Field(default_factory=dict)
+    metrics: Dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
     def example(cls, bundle: Optional[Path] = None, schema_path: Optional[Path] = None) -> "ValidationReport":
@@ -155,6 +156,18 @@ def validate_ngff(path: Path) -> ValidationReport:
 
     issues: List[ValidationIssue] = []
     summary: Dict[str, Any] = {"target": str(path), "format": "ngff"}
+
+    provenance_attr = root.attrs.get("omnispatial_provenance")
+    if provenance_attr is None:
+        _add_issue(
+            issues,
+            "PROVENANCE_MISSING",
+            "Dataset is missing 'omnispatial_provenance' metadata.",
+            "/",
+            Severity.WARNING,
+        )
+    else:
+        summary["provenance"] = provenance_attr
 
     images = root.get("images")
     if images is None:

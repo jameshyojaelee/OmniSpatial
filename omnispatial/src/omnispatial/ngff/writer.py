@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
-from typing import Iterable, List, Tuple
+from typing import Iterable, List, Optional, Tuple
 
 import numpy as np
 from shapely import wkt as shapely_wkt
 from shapely.geometry import Point
 from shapely.geometry.base import BaseGeometry
+
+from numcodecs import Blosc
 
 from omnispatial.core.model import AffineTransform, SpatialDataset
 from omnispatial.utils import read_image_any
@@ -45,7 +47,32 @@ def _rasterize_labels(geometries: Iterable[str], shape: Tuple[int, int]) -> np.n
     return mask
 
 
-def write_ngff(dataset: SpatialDataset, out_path: str) -> str:
+def _resolve_chunks(shape: Tuple[int, ...], request: Optional[Tuple[int, ...]], min_chunk: int = 64) -> Tuple[int, ...]:
+    if request:
+        return request
+    if len(shape) == 3:
+        return (1, min(min_chunk, shape[-2]), min(min_chunk, shape[-1]))
+    return tuple(min(min_chunk, dim) for dim in shape)
+
+
+def _build_compressor(name: Optional[str], level: int) -> Optional[Blosc]:
+    if not name or name.lower() in {"none", "false"}:
+        return None
+    cname = name.lower()
+    if cname not in {"zstd", "lz4", "zlib", "snappy"}:
+        raise ValueError(f"Unsupported compressor '{name}'.")
+    return Blosc(cname=cname, clevel=max(1, min(level, 9)), shuffle=Blosc.BITSHUFFLE)
+
+
+def write_ngff(
+    dataset: SpatialDataset,
+    out_path: str,
+    *,
+    image_chunks: Optional[Tuple[int, int, int]] = None,
+    label_chunks: Optional[Tuple[int, int]] = None,
+    compressor: Optional[str] = "zstd",
+    compression_level: int = 5,
+) -> str:
     """Write the spatial dataset to an NGFF Zarr store."""
     import anndata as ad
     import zarr
@@ -57,6 +84,9 @@ def write_ngff(dataset: SpatialDataset, out_path: str) -> str:
     images_group = root.create_group("images")
     labels_group = root.create_group("labels")
     tables_group = root.create_group("tables")
+    compressor_obj = _build_compressor(compressor, compression_level)
+    provenance = dataset.provenance.model_dump() if dataset.provenance else {}
+    root.attrs["omnispatial_provenance"] = provenance
 
     first_image_shape: Tuple[int, int] | None = None
 
@@ -66,9 +96,25 @@ def write_ngff(dataset: SpatialDataset, out_path: str) -> str:
         data, _ = read_image_any(Path(image.path))
         if data.ndim == 2:
             data = np.expand_dims(data, axis=0)
-        chunks = (1, min(64, data.shape[-2]), min(64, data.shape[-1]))
+        chunks = _resolve_chunks(data.shape, image_chunks)
         image_group = images_group.create_group(image.name)
-        image_group.create_dataset("0", data=data, chunks=chunks, overwrite=True)
+        try:
+            image_group.create_dataset(
+                "0",
+                data=data,
+                chunks=chunks,
+                overwrite=True,
+                compressor=compressor_obj,
+            )
+        except ValueError:
+            fallback_chunks = _resolve_chunks(data.shape, None, min_chunk=32)
+            image_group.create_dataset(
+                "0",
+                data=data,
+                chunks=fallback_chunks,
+                overwrite=True,
+                compressor=compressor_obj,
+            )
         scale, translation = _extract_scale_translation(image.transform)
         axes = [
             {"name": "c", "type": "channel"},
@@ -99,8 +145,24 @@ def write_ngff(dataset: SpatialDataset, out_path: str) -> str:
         for label in dataset.labels:
             mask = _rasterize_labels(label.geometries, first_image_shape)
             label_group = labels_group.create_group(label.name)
-            chunks = (min(64, mask.shape[0]), min(64, mask.shape[1]))
-            label_group.create_dataset("0", data=mask, chunks=chunks, overwrite=True)
+            chunks = label_chunks or (min(128, mask.shape[0]), min(128, mask.shape[1]))
+            try:
+                label_group.create_dataset(
+                    "0",
+                    data=mask,
+                    chunks=chunks,
+                    overwrite=True,
+                    compressor=compressor_obj,
+                )
+            except ValueError:
+                fallback_chunks = (min(64, mask.shape[0]), min(64, mask.shape[1]))
+                label_group.create_dataset(
+                    "0",
+                    data=mask,
+                    chunks=fallback_chunks,
+                    overwrite=True,
+                    compressor=compressor_obj,
+                )
             scale, translation = _extract_scale_translation(label.transform)
             axes = [
                 {"name": "y", "type": "space", "unit": label.transform.units},
@@ -144,6 +206,7 @@ def write_spatialdata(dataset: SpatialDataset, out_path: str) -> str:
     from spatialdata import SpatialData
     from spatialdata.io import write_zarr
     from spatialdata.models import Image2DModel, Labels2DModel, TableModel
+    import zarr
 
     output = Path(out_path)
     _ensure_parent(output)
@@ -191,6 +254,9 @@ def write_spatialdata(dataset: SpatialDataset, out_path: str) -> str:
 
     sdata = SpatialData(images={image.name: image_model}, labels=labels_model_dict, table=table_obj)
     write_zarr(sdata, str(output), overwrite=True)
+    root = zarr.open_group(str(output), mode="a")
+    if dataset.provenance:
+        root.attrs["omnispatial_provenance"] = dataset.provenance.model_dump()
     return str(output)
 
 

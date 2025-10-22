@@ -20,6 +20,7 @@ Adapters register themselves via the `register_adapter` decorator in `omnispatia
 - `LabelLayer`: segmentation masks or vector geometries linked to the same coordinate system.
 - `TableLayer`: AnnData-backed measurements mapping observations to coordinates or polygons.
 - `SpatialDataset`: an aggregate that tracks coordinate frames and ensures transforms are invertible.
+- `ProvenanceMetadata`: adapter name, OmniSpatial version, creation timestamp, and the source files consumed during conversion. Writers embed this metadata in NGFF/SpatialData attrs so downstream tooling and the validator can report lineage.
 
 Adapters produce a `SpatialDataset`, which becomes the single source of truth for downstream tooling.
 
@@ -29,6 +30,7 @@ Adapters produce a `SpatialDataset`, which becomes the single source of truth fo
 
 - `write_ngff` streams imagery, rasterised labels, and AnnData tables into an OME-NGFF Zarr store, emitting NGFF metadata and coordinate transforms.
 - `write_spatialdata` materialises a SpatialData object that links image, labels, and tables and flushes to Zarr for interoperability with the Python ecosystem.
+- Both writers accept chunk and compression configuration and fall back to safe defaults for large datasets. They persist provenance metadata in the Zarr root attributes for traceability.
 
 Both writers respect the transforms defined in the canonical model so that viewers can locate pixels, labels, and observations in a shared frame.
 
@@ -40,9 +42,14 @@ Both writers respect the transforms defined in the canonical model so that viewe
 - Monotonic scale factors and valid units for spatial axes.
 - Table observation indices aligned with label masks or polygon counts.
 - Bounding box consistency between labels and imagery.
+- Provenance metadata exists and is exposed in the JSON report summaries.
 
 The CLI exposes these checks through `omnispatial validate`, returning exit codes suitable for CI pipelines.
 
 ## Viewer and Plugin
 
 The Next.js web viewer consumes NGFF pyramids directly in the browser using Viv and overlays observation geometry fetched via a lightweight GeoJSON API. The napari plugin registers a reader and dock widget so that desktop inspections stay in sync with the canonical model.
+
+## Adapter Runtime Improvements
+
+Adapters now share cached IO helpers for tabular loads to minimise repeated parsing, especially when multiple layers reference the same CSV/Parquet inputs. Every adapter populates provenance metadata with the files it touched, the OmniSpatial version, and any adapter-specific context so that conversions remain auditable.

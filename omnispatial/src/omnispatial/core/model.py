@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -167,6 +168,18 @@ class TableLayer(BaseModel):
         return int(value) if value is not None else None
 
 
+class ProvenanceMetadata(BaseModel):
+    """Capture provenance for a SpatialDataset."""
+
+    adapter: str = Field(..., description="Registered adapter name responsible for the dataset.")
+    version: str = Field(..., description="OmniSpatial version used to generate the dataset.")
+    created_at: datetime = Field(default_factory=datetime.utcnow, description="UTC timestamp of creation.")
+    source_files: List[str] = Field(default_factory=list, description="Paths of input files used during conversion.")
+    extra: Dict[str, Any] = Field(default_factory=dict, description="Adapter-specific provenance metadata.")
+
+    model_config = {"validate_assignment": True}
+
+
 class SpatialDataset(BaseModel):
     """Aggregate of image, label, and table layers with shared coordinate frames."""
 
@@ -175,6 +188,10 @@ class SpatialDataset(BaseModel):
     tables: List[TableLayer] = Field(default_factory=list)
     frames: Dict[str, CoordinateFrame] = Field(default_factory=dict)
     global_frame: str = Field(default="global", description="Name of the global reference frame.")
+    provenance: Optional[ProvenanceMetadata] = Field(
+        default=None,
+        description="Provenance metadata describing the adapter run and source files.",
+    )
 
     model_config = {"validate_assignment": True}
 
@@ -195,6 +212,9 @@ class SpatialDataset(BaseModel):
             missing = ", ".join(sorted(undefined))
             msg = f"Referenced frames missing from registry: {missing}"
             raise ValueError(msg)
+        if self.provenance is None:
+            msg = "SpatialDataset.provenance must be provided."
+            raise ValueError(msg)
         return self
 
     def frame_names(self) -> List[str]:
@@ -209,4 +229,5 @@ __all__ = [
     "LabelLayer",
     "TableLayer",
     "SpatialDataset",
+    "ProvenanceMetadata",
 ]

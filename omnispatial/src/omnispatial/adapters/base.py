@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Iterable, Optional
 
-from omnispatial.core.model import SpatialDataset
+from omnispatial import __version__
+from omnispatial.core.model import ProvenanceMetadata, SpatialDataset
 
 
 class SpatialAdapter(ABC):
@@ -26,5 +27,19 @@ class SpatialAdapter(ABC):
     def metadata(self) -> Dict[str, Any]:
         """Return metadata describing the adapter, vendor, and supported modalities."""
 
+    def build_provenance(
+        self,
+        sources: Iterable[Path | str],
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> ProvenanceMetadata:
+        """Construct provenance metadata for downstream consumers."""
+        source_strings = sorted({str(Path(source)) for source in sources})
+        return ProvenanceMetadata(
+            adapter=self.name,
+            version=__version__,
+            source_files=source_strings,
+            extra=extra or {},
+        )
 
-__all__ = ["SpatialAdapter"]
+
+__all__ = ["ProvenanceMetadata", "SpatialAdapter"]

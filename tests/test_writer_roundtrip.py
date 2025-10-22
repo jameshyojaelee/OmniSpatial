@@ -63,6 +63,8 @@ def test_convert_to_ngff(request, fixture_name: str, tmp_path: Path) -> None:
     assert image_data.shape[-2:] == original_shape
     original_table = ad.read_h5ad(dataset.tables[0].adata_path)
     assert np.isclose(float(adata.X.sum()), float(original_table.X.sum()))
+    root = zarr.open_group(str(out_path), mode="r")
+    assert "omnispatial_provenance" in root.attrs
 
 
 @pytest.mark.parametrize(
@@ -96,3 +98,21 @@ def test_convert_to_spatialdata(request, fixture_name: str, tmp_path: Path) -> N
 
     table = sdata.table
     assert np.isclose(float(table.X.sum()), float(ad.read_h5ad(dataset.tables[0].adata_path).X.sum()))
+
+
+def test_convert_dry_run(tmp_path: Path, xenium_synthetic_dataset: Path) -> None:
+    out_path = tmp_path / "dry_run.zarr"
+    result = runner.invoke(
+        app,
+        [
+            "convert",
+            str(xenium_synthetic_dataset),
+            "--vendor",
+            "xenium",
+            "--out",
+            str(out_path),
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code == 0, result.stdout
+    assert not out_path.exists()
