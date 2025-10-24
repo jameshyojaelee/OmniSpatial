@@ -100,8 +100,21 @@ class XeniumAdapter(SpatialAdapter):
         image_layer = self._build_image_layer(image_path, image_data, transform, local_frame)
         label_layer = self._build_label_layer(cells, transform, local_frame)
         table_layer = self._build_table_layer(path, cells, matrix, transform, local_frame)
+        table_path = table_layer.adata_path
+        if table_path is None:
+            raise ValueError("Xenium adapter failed to materialise an AnnData table.")
+        table_path = Path(table_path)
+        if not table_path.exists():
+            raise ValueError(f"AnnData table '{table_path}' was not created.")
+        candidates = [
+            path / CELLS_FILE,
+            path / MATRIX_FILE,
+            image_path,
+            table_path,
+        ]
+        existing_sources = sorted({candidate.resolve() for candidate in candidates if candidate.exists()})
         provenance = self.build_provenance(
-            sources=[table_path, path / CELLS_FILE, path / MATRIX_FILE, image_path],
+            sources=[str(source) for source in existing_sources],
             extra={"table": table_path.name},
         )
         return SpatialDataset(

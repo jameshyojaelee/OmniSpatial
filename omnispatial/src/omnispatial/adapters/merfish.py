@@ -100,10 +100,24 @@ class MerfishAdapter(SpatialAdapter):
         )
         label_layer = self._build_label_layer(cells, source, transform, local_frame)
         table_layer = self._build_table_layer(base, cells, counts, transform, local_frame)
-
+        table_path = table_layer.adata_path
+        if table_path is None:
+            raise ValueError("MERFISH adapter failed to materialise an AnnData table.")
+        table_path = Path(table_path)
+        if not table_path.exists():
+            raise ValueError(f"AnnData table '{table_path}' was not created.")
+        candidates = [
+            base / SPOTS_FILE,
+            image_path,
+            table_path,
+        ]
+        cells_file = base / CELLS_FILE
+        if cells_file.exists():
+            candidates.append(cells_file)
+        existing_sources = sorted({candidate.resolve() for candidate in candidates if candidate.exists()})
         provenance = self.build_provenance(
-            sources=[path / SPOTS_FILE, image_path],
-            extra={"bins": list(polygons.keys())},
+            sources=[str(source) for source in existing_sources],
+            extra={"bins": list(polygons.keys()), "table": table_path.name},
         )
         return SpatialDataset(
             images=[image_layer],

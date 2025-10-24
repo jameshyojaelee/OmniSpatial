@@ -101,6 +101,37 @@ def test_adapter_detects_expected_structure(tmp_path, adapter_cls, filename) -> 
     assert adapter.detect(tmp_path)
     dataset = adapter.read(tmp_path)
     assert dataset.tables[0].cell_count == 2
+    table_layer = dataset.tables[0]
+    assert table_layer.adata_path is not None
+    table_path = Path(table_layer.adata_path)
+    assert table_path.exists()
+    provenance = dataset.provenance
+    assert provenance is not None
+    source_files = set(provenance.source_files)
+    if adapter_cls is XeniumAdapter:
+        expected_sources = {
+            str((tmp_path / "cells.csv").resolve()),
+            str((tmp_path / "matrix.csv").resolve()),
+            str((tmp_path / "images" / "synthetic.tif").resolve()),
+            str((tmp_path / "matrix.h5ad").resolve()),
+        }
+    elif adapter_cls is CosMxAdapter:
+        expected_sources = {
+            str((tmp_path / "cells.parquet").resolve()),
+            str((tmp_path / "expr.parquet").resolve()),
+            str((tmp_path / "image.zarr").resolve()),
+            str((tmp_path / "expr.h5ad").resolve()),
+        }
+    else:
+        expected_sources = {
+            str((tmp_path / "spots.csv").resolve()),
+            str((tmp_path / "image.tif").resolve()),
+            str((tmp_path / "spots.h5ad").resolve()),
+        }
+        cells_file = tmp_path / "cells.csv"
+        if cells_file.exists():
+            expected_sources.add(str(cells_file.resolve()))
+    assert source_files == expected_sources
 
 
 def test_get_adapter_returns_none_for_unknown(tmp_path) -> None:

@@ -98,9 +98,21 @@ class CosMxAdapter(SpatialAdapter):
         )
         label_layer = self._build_label_layer(stitched_cells, transform, local_frame)
         table_layer = self._build_table_layer(base, stitched_cells, expr, transform, local_frame)
-
+        table_path = table_layer.adata_path
+        if table_path is None:
+            raise ValueError("CosMx adapter failed to materialise an AnnData table.")
+        table_path = Path(table_path)
+        if not table_path.exists():
+            raise ValueError(f"AnnData table '{table_path}' was not created.")
+        candidates = [
+            base / CELLS_FILE,
+            base / EXPR_FILE,
+            image_path,
+            table_path,
+        ]
+        existing_sources = sorted({candidate.resolve() for candidate in candidates if candidate.exists()})
         provenance = self.build_provenance(
-            sources=[path / CELLS_FILE, path / EXPR_FILE, image_path],
+            sources=[str(source) for source in existing_sources],
             extra={"table": table_path.name},
         )
         return SpatialDataset(
