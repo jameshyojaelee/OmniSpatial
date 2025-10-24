@@ -74,7 +74,25 @@ Once tests and documentation pass, push to a feature branch and open a pull requ
 
 For major updates, bump the version via `poetry version`, run `tools/update_citation.py --version X.Y.Z`, and update `CHANGELOG.md` before tagging.
 
-## Benchmark dataset cache
+## 6. High-level API usage
+
+The high-level `omnispatial.api` helpers are ideal for scripting conversions without invoking the CLI. A minimal example:
+
+```python
+from pathlib import Path
+from omnispatial import api
+
+dataset = Path("data/xenium")
+ngff = Path("outputs/xenium_ngff.zarr")
+
+result = api.convert(dataset, ngff, vendor="xenium", output_format="ngff")
+report = api.validate(result.output_path, output_format=result.format)
+assert report.ok
+```
+
+See `omnispatial/tests/test_api_integration.py` for a full end-to-end regression that exercises both NGFF and SpatialData code paths and inspects provenance metadata.
+
+## 7. Benchmark dataset cache
 
 The benchmarking harness pulls large public datasets into a shared cache managed by `tools/datasets/fetch_datasets.py`. The script normalises directory structure, records checksums in `datasets/index.json`, and supports idempotent re-runs. Usage examples:
 

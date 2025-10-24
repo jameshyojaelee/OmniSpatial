@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 ### Added
 - Functional `ConversionPipeline` orchestration that emits per-adapter NGFF bundles and returns `ConversionResult` metadata.
+- Integration tests covering NGFF and SpatialData conversions via the high-level API.
 - Initial end-to-end tutorial notebook and documentation restructure.
 - Napari plugin enhancements, GeoJSON streaming API, and web viewer improvements.
 - Validation pipeline with machine-readable reports and release automation.
