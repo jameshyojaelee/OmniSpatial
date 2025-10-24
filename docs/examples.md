@@ -26,3 +26,5 @@ Reusable Nextflow and Snakemake templates live under `examples/workflows/` and c
 - `examples/workflows/snakemake/` ships a `Snakefile` and `config.yaml` that can be customised per sample. Enable validation by setting `validate: true` in the config.
 
 Both templates work against local checkouts or the published container image, making it easy to embed OmniSpatial in larger orchestration stacks.
+
+When orchestrating conversions directly in Python, `ConversionPipeline` writes each matched adapter to its own `<output>/<adapter>.ngff.zarr` directory, matching the layout expected by these workflow templates.

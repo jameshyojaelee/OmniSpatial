@@ -5,6 +5,20 @@
 - `SampleMetadata` – Pydantic model describing assays.
 - `ConversionPipeline` – High-level orchestration entry point.
 
+  Typical usage returns a list of `ConversionResult` objects with the emitted bundle paths:
+
+  ```python
+  from pathlib import Path
+  from omnispatial.core import ConversionPipeline, SampleMetadata
+
+  pipeline = ConversionPipeline()
+  metadata = SampleMetadata(sample_id="S1", organism="human", assay="transcriptomics")
+  results = pipeline.convert(Path("data/xenium"), Path("outputs"), metadata)
+  for result in results:
+      print(result.adapter, result.output_path)
+  # yields outputs/xenium.ngff.zarr and similar per matched adapter
+  ```
+
 ## `omnispatial.api`
 
 - `convert` / `convert_async` – Invoke adapter-driven conversions programmatically, returning a `ConversionResult` with the emitted bundle path.
