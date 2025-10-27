@@ -17,7 +17,7 @@ def test_registry_matches() -> None:
     """Default registry returns adapters that match the assay."""
     metadata = SampleMetadata(sample_id="1", organism="human", assay="transcriptomics")
     registry = AdapterRegistry.default()
-    matches = list(registry.matching(metadata=metadata, input_path=Path("data")))
+    matches = list(registry.matching(metadata=metadata, input_path=Path("data"), require_detect=False))
     assert matches, "Expected at least one adapter for transcriptomics assays"
 
 

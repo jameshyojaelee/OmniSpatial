@@ -131,8 +131,22 @@ class AdapterRegistry:
         name = getattr(adapter_cls, "name", adapter_cls.__name__).lower()
         self._entries[name] = adapter_cls
 
-    def matching(self, metadata: SampleMetadata, input_path: Path) -> Iterator[str]:
-        """Yield adapter names that could operate on the provided metadata."""
+    def matching(
+        self,
+        metadata: SampleMetadata,
+        input_path: Path,
+        *,
+        require_detect: bool = True,
+    ) -> Iterator[str]:
+        """Yield adapter names that can operate on the provided metadata.
+
+        Args:
+            metadata: Sample metadata describing the assay.
+            input_path: Filesystem path to the dataset under consideration.
+            require_detect: When True (default), only adapters whose ``detect`` method
+                returns True are yielded. When False, adapters whose modalities match
+                the assay are also included as a metadata-only fallback.
+        """
         metadata_assay = metadata.assay.lower()
         for name, adapter_cls in self._entries.items():
             adapter = adapter_cls()
@@ -142,7 +156,10 @@ class AdapterRegistry:
                 detected = adapter.detect(input_path)
             except Exception:
                 detected = False
-            if detected or not modalities or metadata_assay in modalities:
+            if detected:
+                yield name
+                continue
+            if not require_detect and (not modalities or metadata_assay in modalities):
                 yield name
 
 

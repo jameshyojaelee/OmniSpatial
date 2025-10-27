@@ -7,11 +7,10 @@ from pathlib import Path
 from typing import Iterable, List, Optional, Tuple
 
 import numpy as np
-from shapely import wkt as shapely_wkt
-from shapely.geometry import Point
-from shapely.geometry.base import BaseGeometry
-
 from numcodecs import Blosc
+from rasterio import features
+from shapely import wkt as shapely_wkt
+from shapely.geometry.base import BaseGeometry
 
 from omnispatial.core.model import AffineTransform, SpatialDataset
 from omnispatial.utils import read_image_any
@@ -31,19 +30,31 @@ def _extract_scale_translation(transform: AffineTransform) -> Tuple[List[float],
 
 
 def _rasterize_labels(geometries: Iterable[str], shape: Tuple[int, int]) -> np.ndarray:
-    mask = np.zeros(shape, dtype=np.uint32)
+    """Rasterise polygon geometries into a label mask with uint32 dtype."""
+    height, width = shape
+    if height <= 0 or width <= 0:
+        raise ValueError("Raster shape must be positive and non-zero.")
+
+    shapes: List[Tuple[BaseGeometry, int]] = []
     for index, geom_wkt in enumerate(geometries, start=1):
-        geometry: BaseGeometry = shapely_wkt.loads(geom_wkt)
-        min_x, min_y, max_x, max_y = geometry.bounds
-        x_min = max(int(np.floor(min_x)), 0)
-        x_max = min(int(np.ceil(max_x)), shape[1])
-        y_min = max(int(np.floor(min_y)), 0)
-        y_max = min(int(np.ceil(max_y)), shape[0])
-        for y in range(y_min, y_max):
-            for x in range(x_min, x_max):
-                point = Point(x + 0.5, y + 0.5)
-                if geometry.covers(point):
-                    mask[y, x] = index
+        geometry = shapely_wkt.loads(geom_wkt)
+        if geometry.is_empty:
+            raise ValueError("Encountered empty geometry while rasterising labels.")
+        if geometry.geom_type not in {"Polygon", "MultiPolygon"}:
+            raise TypeError(f"Label geometry must be polygonal, received '{geometry.geom_type}'.")
+        shapes.append((geometry, index))
+
+    if not shapes:
+        return np.zeros(shape, dtype=np.uint32)
+
+    mask = features.rasterize(
+        shapes=shapes,
+        out_shape=shape,
+        dtype="uint32",
+        fill=0,
+        default_value=0,
+        all_touched=True,
+    )
     return mask
 
 
