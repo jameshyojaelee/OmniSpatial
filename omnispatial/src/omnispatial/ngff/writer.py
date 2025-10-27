@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import shutil
+from itertools import product
 from pathlib import Path
-from typing import Iterable, List, Optional, Tuple
+from typing import Any, Iterable, Iterator, List, NamedTuple, Optional, Tuple
 
 import numpy as np
+import tifffile
 from numcodecs import Blosc
 from rasterio import features
 from shapely import wkt as shapely_wkt
@@ -14,6 +16,13 @@ from shapely.geometry.base import BaseGeometry
 
 from omnispatial.core.model import AffineTransform, SpatialDataset
 from omnispatial.utils import read_image_any
+
+
+class _ImageSource(NamedTuple):
+    data: object
+    shape: Tuple[int, ...]
+    dtype: np.dtype
+    expanded: bool
 
 
 def _ensure_parent(path: Path) -> None:
@@ -56,6 +65,79 @@ def _rasterize_labels(geometries: Iterable[str], shape: Tuple[int, int]) -> np.n
         all_touched=True,
     )
     return mask
+
+
+def _prepare_image_source(path: Path) -> _ImageSource:
+    """Open an image resource for chunked reading."""
+    suffix = path.suffix.lower()
+    if suffix in {".tif", ".tiff"}:
+        array = tifffile.memmap(path)
+        shape = array.shape
+        expanded = False
+        if array.ndim == 2:
+            shape = (1, *shape)
+            expanded = True
+        return _ImageSource(data=array, shape=tuple(int(dim) for dim in shape), dtype=np.dtype(array.dtype), expanded=expanded)
+
+    if suffix == ".zarr" or path.is_dir():
+        import zarr  # local import to avoid mandatory dependency at module import
+
+        try:
+            store = zarr.open(str(path), mode="r")
+        except Exception:
+            store = None
+        array = None
+        if store is not None and hasattr(store, "shape"):
+            array = store
+        else:
+            group = zarr.open_group(str(path), mode="r")
+            array_keys = list(getattr(group, "array_keys", lambda: [])())
+            if not array_keys:
+                array_keys = [key for key in group]  # type: ignore[index]
+            if not array_keys:
+                raise ValueError(f"No arrays found in Zarr store: {path}")
+            first_key = sorted(array_keys)[0]
+            array = group[first_key]
+        shape = array.shape
+        expanded = False
+        if array.ndim == 2:
+            shape = (1, *shape)
+            expanded = True
+        return _ImageSource(data=array, shape=tuple(int(dim) for dim in shape), dtype=np.dtype(array.dtype), expanded=expanded)
+
+    data, _ = read_image_any(path)
+    if data.ndim == 2:
+        data = np.expand_dims(data, axis=0)
+    return _ImageSource(
+        data=data,
+        shape=tuple(int(dim) for dim in data.shape),
+        dtype=np.dtype(data.dtype),
+        expanded=False,
+    )
+
+
+def _chunk_slices(shape: Tuple[int, ...], chunk_shape: Tuple[int, ...]) -> Iterator[Tuple[slice, ...]]:
+    steps = []
+    for dim, chunk in zip(shape, chunk_shape):
+        step = int(chunk) if chunk and chunk > 0 else int(dim)
+        steps.append(step)
+    ranges = [range(0, dim, step) for dim, step in zip(shape, steps)]
+    for starts in product(*ranges):
+        slices = tuple(slice(start, min(start + step, dim)) for start, step, dim in zip(starts, steps, shape))
+        yield slices
+
+
+def _copy_source_to_zarr(source: _ImageSource, dest: Any) -> None:
+    chunk_shape = dest.chunks
+    shape = dest.shape
+    for selection in _chunk_slices(shape, chunk_shape):
+        if source.expanded:
+            src_selection = selection[1:]
+            data = np.asarray(source.data[src_selection])  # type: ignore[index]
+            data = np.expand_dims(data, axis=0)
+        else:
+            data = np.asarray(source.data[selection])  # type: ignore[index]
+        dest[selection] = data
 
 
 def _resolve_chunks(
@@ -132,33 +214,34 @@ def write_ngff(
     for image in dataset.images:
         if image.path is None:
             raise ValueError("ImageLayer requires a concrete file path to write NGFF output.")
-        data, _ = read_image_any(Path(image.path))
-        if data.ndim == 2:
-            data = np.expand_dims(data, axis=0)
-        chunks = _resolve_chunks(data.shape, image_chunks, dtype_size=data.dtype.itemsize)
+        source = _prepare_image_source(Path(image.path))
+        chunks = _resolve_chunks(source.shape, image_chunks, dtype_size=source.dtype.itemsize)
         image_group = images_group.create_group(image.name)
         try:
-            image_group.create_dataset(
+            dataset = image_group.create_dataset(
                 "0",
-                data=data,
+                shape=source.shape,
+                dtype=source.dtype,
                 chunks=chunks,
                 overwrite=True,
                 compressor=compressor_obj,
             )
         except ValueError:
             fallback_chunks = _resolve_chunks(
-                data.shape,
+                source.shape,
                 None,
-                dtype_size=data.dtype.itemsize,
+                dtype_size=source.dtype.itemsize,
                 min_chunk=32,
             )
-            image_group.create_dataset(
+            dataset = image_group.create_dataset(
                 "0",
-                data=data,
+                shape=source.shape,
+                dtype=source.dtype,
                 chunks=fallback_chunks,
                 overwrite=True,
                 compressor=compressor_obj,
             )
+        _copy_source_to_zarr(source, dataset)
         scale, translation = _extract_scale_translation(image.transform)
         axes = [
             {"name": "c", "type": "channel"},
@@ -181,7 +264,7 @@ def write_ngff(
                 ],
             }
         ]
-        first_image_shape = data.shape[-2:]
+        first_image_shape = source.shape[-2:]
 
     if dataset.labels:
         if first_image_shape is None:
