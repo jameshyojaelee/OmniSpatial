@@ -1,0 +1,12 @@
+format: ngff
+validate: true
+validation_format: ngff
+image_chunks: 1,512,512
+label_chunks: 256,256
+outdir: build
+report_dir: build/reports
+container: ghcr.io/omnispatial/omnispatial:latest
+vendor: null  # Set to a vendor name to override detection for every sample.
+samples:
+  xenium_tissue: /data/xenium/runs/xenium_tissue
+  cosmx_panel: /data/cosmx/runs/cosmx_panel  # Specify vendor per sample via params.samples overrides.

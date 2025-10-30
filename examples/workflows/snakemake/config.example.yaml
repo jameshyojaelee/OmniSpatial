@@ -1,0 +1,14 @@
+format: ngff
+vendor: xenium  # Global default; override per sample under samples.*.vendor.
+validate: true
+validation_format: ngff
+output_dir: build
+report_dir: build/reports
+image_chunks: 1,512,512
+label_chunks: 256,256
+samples:
+  xenium_tissue:
+    input: /data/xenium/runs/xenium_tissue
+  cosmx_panel:
+    input: /data/cosmx/runs/cosmx_panel
+    vendor: cosmx-public  # Sample-specific override when mixing assays.

@@ -9,10 +9,17 @@ params.samples = [
 ]
 ```
 
-Run the pipeline:
+To get started quickly, copy `params.example.yaml` to a working directory, adjust the sample paths, and run with:
 
 ```bash
+cp params.example.yaml params.yaml
 nextflow run main.nf -params-file params.yaml
+```
+
+Run the pipeline directly from the template with your own params file:
+
+```bash
+nextflow run main.nf -params-file params.example.yaml
 ```
 
 Key parameters:
@@ -21,6 +28,6 @@ Key parameters:
 - `vendor`: optional adapter name (auto-detection when omitted).
 - `image_chunks` / `label_chunks`: chunk specifications for NGFF output.
 - `validate`: set `true` to run the validation module after conversion.
-- `container`: container image to run the processes (e.g., `ghcr.io/omnispatial/omnispatial:latest`).
+- `container`: container image to run the processes (e.g., `ghcr.io/omnispatial/omnispatial:latest`); this value is passed through from `params.container` into `nextflow.config`.
 
 The modules reuse `../scripts/run_omnispatial.py`, which wraps the `omnispatial.api` module for deterministic workflow-friendly execution.
