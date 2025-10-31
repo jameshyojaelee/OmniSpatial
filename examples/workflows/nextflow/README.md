@@ -29,5 +29,29 @@ Key parameters:
 - `image_chunks` / `label_chunks`: chunk specifications for NGFF output.
 - `validate`: set `true` to run the validation module after conversion.
 - `container`: container image to run the processes (e.g., `ghcr.io/omnispatial/omnispatial:latest`); this value is passed through from `params.container` into `nextflow.config`.
+- Validation reports: see `docs/validation-reports.md` for aggregation options and CI recipes.
 
 The modules reuse `../scripts/run_omnispatial.py`, which wraps the `omnispatial.api` module for deterministic workflow-friendly execution.
+
+## Containerized Execution
+
+Set `params.container` to `ghcr.io/omnispatial/omnispatial:latest` (as shown in `params.example.yaml`) and Nextflow forwards the value to `nextflow.config`, enabling both Docker and Singularity launches.
+
+```bash
+nextflow run main.nf \
+  -params-file params.example.yaml \
+  -with-docker \
+  -DSL2
+```
+
+When running with Singularity/Apptainer:
+
+```bash
+nextflow run main.nf \
+  -params-file params.example.yaml \
+  -with-singularity \
+  -DSL2 \
+  -config ./singularity.config
+```
+
+Add `singularity.enabled = true` (or `singularity.autoMounts = true`) inside an override config when targeting Apptainer, and ensure host data directories (for example `/data`) are available via Nextflow’s volume handling or explicit `process.containerOptions` mount flags.

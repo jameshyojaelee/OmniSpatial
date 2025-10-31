@@ -24,6 +24,7 @@ Reusable Nextflow and Snakemake templates live under `examples/workflows/` and c
 
 - `examples/workflows/nextflow/` contains a DSL2 pipeline with modular conversion and validation processes. Configure `params.samples` to point at datasets and optionally set `params.vendor`, `params.validate`, and chunking parameters.
 - `examples/workflows/snakemake/` ships a `Snakefile` and `config.yaml` that can be customised per sample. Enable validation by setting `validate: true` in the config.
+- Aggregating the resulting `<sample>.validation.json` files is covered in [Validation Reports](validation-reports.md).
 
 Both templates work against local checkouts or the published container image, making it easy to embed OmniSpatial in larger orchestration stacks.
 

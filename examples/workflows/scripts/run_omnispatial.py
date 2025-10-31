@@ -20,10 +20,29 @@ def _parse_chunks(value: Optional[str], dims: int) -> Optional[Tuple[int, ...]]:
     return tuple(int(part) for part in parts)
 
 
+def _resolve_cli_path(flag_value: Optional[Path], positional_value: Optional[Path], label: str) -> Path:
+    """Choose between positional and flag-supplied paths, enforcing consistency."""
+    if flag_value and positional_value and flag_value != positional_value:
+        raise SystemExit(
+            f"Conflicting {label} values provided (positional='{positional_value}' vs '--{label}={flag_value}')."
+        )
+    path = flag_value or positional_value
+    if path is None:
+        raise SystemExit(f"Missing required {label} path. Provide it positionally or with '--{label}'.")
+    return path
+
+
 def _convert(args: argparse.Namespace) -> None:
+    input_path = _resolve_cli_path(getattr(args, "input_flag", None), getattr(args, "input_path", None), "input")
+    output_path = _resolve_cli_path(getattr(args, "output_flag", None), getattr(args, "output_path", None), "output")
+
+    # Maintain compatibility for any downstream consumers expecting these attributes.
+    args.input = input_path
+    args.output = output_path
+
     result = api.convert(
-        args.input,
-        args.output,
+        input_path,
+        output_path,
         vendor=args.vendor,
         output_format=args.format,
         dry_run=args.dry_run,
@@ -42,7 +61,7 @@ def _convert(args: argparse.Namespace) -> None:
         print(json.dumps(summary))
 
     if args.validate_output:
-        target = result.output_path or Path(args.output)
+        target = result.output_path or output_path
         report = api.validate(target, output_format=args.validation_format or result.format)
         if args.report_path:
             Path(args.report_path).write_text(report.model_dump_json(indent=2))
@@ -62,8 +81,32 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     convert = subparsers.add_parser("convert", help="Convert a dataset to NGFF or SpatialData.")
-    convert.add_argument("input", type=Path, help="Input dataset directory to convert.")
-    convert.add_argument("output", type=Path, help="Destination path for the converted bundle.")
+    convert.add_argument(
+        "input_path",
+        nargs="?",
+        type=Path,
+        metavar="input",
+        help="Input dataset directory to convert (may also be supplied via '--input').",
+    )
+    convert.add_argument(
+        "output_path",
+        nargs="?",
+        type=Path,
+        metavar="output",
+        help="Destination path for the converted bundle (may also be supplied via '--output').",
+    )
+    convert.add_argument(
+        "--input",
+        dest="input_flag",
+        type=Path,
+        help="Input dataset directory to convert (alternative to positional argument).",
+    )
+    convert.add_argument(
+        "--output",
+        dest="output_flag",
+        type=Path,
+        help="Destination path for the converted bundle (alternative to positional argument).",
+    )
     convert.add_argument("--vendor", help="Optional adapter name to enforce (auto-detect if omitted).")
     convert.add_argument("--format", default="ngff", choices=["ngff", "spatialdata"], help="Output bundle format.")
     convert.add_argument("--dry-run", action="store_true", help="Run detection without writing outputs.")

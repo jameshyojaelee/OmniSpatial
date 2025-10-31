@@ -86,3 +86,7 @@ docker run --rm \
 ```
 
 Mount input/output volumes as required. The image also ships the workflow templates under `/opt/omnispatial/examples`.
+
+## 9. Orchestrate Workflows in Containers
+
+The workflow templates under `examples/workflows/` inherit the same container image. Copy `params.example.yaml` (Nextflow) or `config.example.yaml` (Snakemake), adjust sample paths, and follow the "Containerized Execution" sections in `examples/workflows/nextflow/README.md` and `examples/workflows/snakemake/README.md`. Those guides detail the `-with-docker` / `-with-singularity` flags, using `params.container` in `nextflow.config`, setting `SNAKEMAKE_CONTAINER_IMAGE`, and binding host data volumes.

@@ -70,3 +70,5 @@ The stress test reads random chunks, reports aggregate throughput (MB/s), averag
 ## CI performance budgets
 
 `ci.yaml` includes a `performance` job that executes the GeoJSON and Viv stress tests on GitHub-hosted runners. Budgets are currently configured to ensure 200k feature synthesis completes within 12 seconds and Viv tile throughput stays above 5 MB/s. Failing budgets block releases, providing early warning when regressions are introduced.
+
+For functional QA of converted bundles, combine performance metrics with the validation summaries documented in [Validation Reports](validation-reports.md). The same JSON payloads can feed scorecards, dashboards, or gating logic alongside benchmark outputs.

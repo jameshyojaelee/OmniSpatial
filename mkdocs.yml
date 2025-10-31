@@ -8,6 +8,7 @@ nav:
   - Quickstart:
       - CLI Quickstart: quickstart.md
       - Examples: examples.md
+      - Validation Reports: validation-reports.md
   - Architecture: architecture.md
   - Benchmarking: benchmarking.md
   - Benchmark Dashboard: benchmark-dashboard.md
