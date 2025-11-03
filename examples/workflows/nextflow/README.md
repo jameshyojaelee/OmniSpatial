@@ -33,6 +33,12 @@ Key parameters:
 
 The modules reuse `../scripts/run_omnispatial.py`, which wraps the `omnispatial.api` module for deterministic workflow-friendly execution.
 
+## Data Staging & Outputs
+
+- Reference inputs from stable mounts like `/data/<vendor>/<sample>` and mirror that structure in `params.samples`. The provided `params.example.yaml` maps IDs (`xenium_tissue`, `cosmx_panel`) to absolute directories under `/data/...`; keep the same pattern when adding additional samples so downstream publish steps resolve correctly.
+- Converted bundles land in `params.outdir` (default `build`) via the `publishDir` directive, while validation JSON is emitted under `params.report_dir` (default `build/reports`). Point these to a high-throughput scratch volume for large batches and clean up completed runs by removing the directory once artifacts are archived.
+- Stick with `image_chunks: 1,512,512` and `label_chunks: 256,256` for most 2D assays; increase the spatial chunk edges when mosaics exceed ~10k pixels to avoid oversized chunk files. The CLI defaults to `compression_level: 5`; see [Data Staging & Storage](../../../docs/quickstart.md#data-staging--storage) for tuning guidance when balancing throughput and storage.
+
 ## Containerized Execution
 
 Set `params.container` to `ghcr.io/omnispatial/omnispatial:latest` (as shown in `params.example.yaml`) and Nextflow forwards the value to `nextflow.config`, enabling both Docker and Singularity launches.

@@ -74,6 +74,13 @@ api.validate(result.output_path, output_format=result.format)
 
 Async variants (`convert_async`, `validate_async`) integrate smoothly with asyncio-based pipelines.
 
+## Data Staging & Storage
+
+- **Inputs:** Keep raw assay exports under a stable mount such as `/data/<vendor>/<sample>` (`/data/xenium/runs/xenium_tissue`, `/data/cosmx/runs/cosmx_panel`, etc.). The workflow templates expect these absolute paths, so avoid moving them once referenced in `params.samples` or `samples.*.input`.
+- **Outputs:** By default the CLI and workflow configs write bundles to `build/` (`outdir`) and validation JSON to `build/reports` (`report_dir`). Point these parameters to a scratch volume when processing large cohorts and prune completed runs with `rm -rf build` (or your custom directory) once artifacts are handed off.
+- **Shared filesystems:** Network mounts work best when presented read-only for inputs and writeable scratch for outputs. Favour staging to local SSD when the shared store is slow or heavily contended, and always mount both input and output roots inside containers (see [Run with Docker](#8-run-with-docker) and [Orchestrate Workflows in Containers](#9-orchestrate-workflows-in-containers) for bind examples).
+- **Chunk sizing & compression:** The example configs default to `image_chunks: 1,512,512` and `label_chunks: 256,256`, a good balance for 2D microscopy tiles. Increase spatial chunk edges to 1024 when exporting very large mosaics, and keep the depth dimension at 1 unless working with volumetric stacks. Validation-ready NGFF bundles use `compression_level: 5`; lower the value to speed up writes on scratch volumes or raise it (6–7) when long-term storage space is a concern.
+
 ## 8. Run with Docker
 
 An official image published to GHCR bundles the CLI, Napari plugin, and documentation assets:

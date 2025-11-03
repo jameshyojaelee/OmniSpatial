@@ -27,6 +27,12 @@ Use the per-sample vendor fields when mixing assays, and adjust chunk sizes or c
 
 The workflow shells out to `../scripts/run_omnispatial.py`, ensuring consistency with the programmatic API exposed via `omnispatial.api`.
 
+## Data Staging & Outputs
+
+- Stage source folders under mounts like `/data/<vendor>/<sample>` and copy that path into each `samples.<id>.input`. The example config maps `xenium_tissue` and `cosmx_panel` directly to `/data/...` roots; keeping absolute paths avoids surprises when switching execution hosts or enabling containers.
+- Bundles are written to `output_dir` (default `build`) and validation JSON to `report_dir` (default `build/reports`). Direct these to high-throughput storage for large batches and delete the directory once you have promoted the generated Zarr bundles and reports.
+- Retain the example `image_chunks: 1,512,512` and `label_chunks: 256,256` for most 2D runs, expanding the spatial chunk size to 1024 only when working with very large mosaics. Compression defaults to level 5 inside `run_omnispatial.py`; consult [Data Staging & Storage](../../../docs/quickstart.md#data-staging--storage) before tightening compression or chunk parameters.
+
 ## Containerized Execution
 
 Snakemake can execute the rules inside the published container without a local Poetry environment. Export the desired image (or rely on Snakemake’s `SNAKEMAKE_CONTAINER_IMAGE` helper) and launch with Singularity/Apptainer:
