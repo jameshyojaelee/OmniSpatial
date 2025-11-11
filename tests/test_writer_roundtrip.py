@@ -116,3 +116,25 @@ def test_convert_dry_run(tmp_path: Path, xenium_synthetic_dataset: Path) -> None
     )
     assert result.exit_code == 0, result.stdout
     assert not out_path.exists()
+
+
+def test_ngff_contains_labels_and_tables(tmp_path: Path, xenium_synthetic_dataset: Path) -> None:
+    """Regression test: ensure NGFF conversion keeps label masks and AnnData tables."""
+    adapter = XeniumAdapter()
+    dataset = adapter.read(xenium_synthetic_dataset)
+    out_path = tmp_path / "xenium_bundle.zarr"
+    _invoke_convert(xenium_synthetic_dataset, out_path, "ngff", "xenium")
+
+    root = zarr.open_group(str(out_path), mode="r")
+    labels_group = root.get("labels")
+    assert labels_group is not None and labels_group.group_keys(), "Expected labels in NGFF output"
+    label_name = dataset.labels[0].name
+    mask = labels_group[label_name]["0"][:]
+    assert mask.size > 0 and int(mask.max()) > 0, "Label mask should be populated"
+
+    tables_group = root.get("tables")
+    assert tables_group is not None and tables_group.group_keys(), "Expected tables in NGFF output"
+    table_name = dataset.tables[0].name
+    adata = ad.read_zarr(str(out_path / "tables" / table_name))
+    assert adata.n_obs > 0
+    assert adata.n_vars > 0

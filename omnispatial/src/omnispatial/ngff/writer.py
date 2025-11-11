@@ -218,7 +218,7 @@ def write_ngff(
         chunks = _resolve_chunks(source.shape, image_chunks, dtype_size=source.dtype.itemsize)
         image_group = images_group.create_group(image.name)
         try:
-            dataset = image_group.create_dataset(
+            image_dataset = image_group.create_dataset(
                 "0",
                 shape=source.shape,
                 dtype=source.dtype,
@@ -233,7 +233,7 @@ def write_ngff(
                 dtype_size=source.dtype.itemsize,
                 min_chunk=32,
             )
-            dataset = image_group.create_dataset(
+            image_dataset = image_group.create_dataset(
                 "0",
                 shape=source.shape,
                 dtype=source.dtype,
@@ -241,7 +241,7 @@ def write_ngff(
                 overwrite=True,
                 compressor=compressor_obj,
             )
-        _copy_source_to_zarr(source, dataset)
+        _copy_source_to_zarr(source, image_dataset)
         scale, translation = _extract_scale_translation(image.transform)
         axes = [
             {"name": "c", "type": "channel"},
