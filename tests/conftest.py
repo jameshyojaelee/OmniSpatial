@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Iterable, Tuple
+from typing import Callable, Dict, Iterable, Tuple
 
 import numpy as np
 import pandas as pd
@@ -12,6 +12,8 @@ import tifffile
 import zarr
 from shapely.affinity import translate
 from shapely.geometry import box as shapely_box
+
+from omnispatial.core.model import ProvenanceMetadata
 
 
 def _write_image(base: Path, shape: Tuple[int, int], data: np.ndarray) -> Path:
@@ -150,3 +152,18 @@ def merfish_synthetic_dataset(tmp_path: Path) -> Path:
     )
     spots.to_csv(dataset_path / "spots.csv", index=False)
     return dataset_path
+
+
+@pytest.fixture()
+def provenance_factory() -> Callable[..., ProvenanceMetadata]:
+    """Return a helper that builds provenance metadata for synthetic datasets."""
+
+    def _factory(*sources: Path | str) -> ProvenanceMetadata:
+        normalized = [str(source) for source in sources] or ["synthetic-source"]
+        return ProvenanceMetadata(
+            adapter="test-adapter",
+            version="0.0-test",
+            source_files=normalized,
+        )
+
+    return _factory

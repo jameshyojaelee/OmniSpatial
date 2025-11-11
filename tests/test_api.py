@@ -10,7 +10,7 @@ import tifffile
 from omnispatial import api
 from omnispatial.adapters import registry
 from omnispatial.adapters.base import SpatialAdapter
-from omnispatial.core.model import AffineTransform, CoordinateFrame, ImageLayer, SpatialDataset
+from omnispatial.core.model import AffineTransform, CoordinateFrame, ImageLayer, ProvenanceMetadata, SpatialDataset
 from omnispatial.validate import ValidationReport
 
 
@@ -23,7 +23,7 @@ def _identity_transform(source: str, target: str) -> AffineTransform:
     )
 
 
-def _dataset(image_path: Path) -> SpatialDataset:
+def _dataset(image_path: Path, provenance: ProvenanceMetadata) -> SpatialDataset:
     local = CoordinateFrame(name="local", axes=("x", "y", "1"), units=("micrometer", "micrometer", "dimensionless"))
     global_frame = CoordinateFrame(
         name="global",
@@ -47,6 +47,7 @@ def _dataset(image_path: Path) -> SpatialDataset:
         tables=[],
         frames={local.name: local, global_frame.name: global_frame},
         global_frame=global_frame.name,
+        provenance=provenance,
     )
 
 
@@ -74,8 +75,12 @@ def image_path(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def stub_adapter(monkeypatch: pytest.MonkeyPatch, image_path: Path):
-    dataset = _dataset(image_path)
+def stub_adapter(
+    monkeypatch: pytest.MonkeyPatch,
+    image_path: Path,
+    provenance_factory,
+):
+    dataset = _dataset(image_path, provenance_factory(image_path))
 
     class FactoryAdapter(_APIAdapter):
         def __init__(self):  # type: ignore[override]
@@ -106,6 +111,8 @@ def test_convert_async(tmp_path: Path, stub_adapter: SpatialDataset) -> None:
 def test_convert_dry_run(tmp_path: Path, stub_adapter: SpatialDataset) -> None:
     result = api.convert(tmp_path, tmp_path / "unused.zarr", vendor="api-test", dry_run=True)
     assert result.output_path is None
+    assert result.dataset.provenance is not None
+    assert result.dataset.provenance.adapter == "test-adapter"
 
 
 def test_validate_delegates(monkeypatch: pytest.MonkeyPatch) -> None:
