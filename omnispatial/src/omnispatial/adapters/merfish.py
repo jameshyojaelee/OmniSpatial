@@ -23,7 +23,7 @@ from omnispatial.core.model import (
     SpatialDataset,
     TableLayer,
 )
-from omnispatial.utils import dataframe_summary, read_image_any, load_tabular_file
+from omnispatial.utils import dataframe_summary, read_image_any, load_tabular_file, temporary_output_path
 
 SPOTS_FILE = "spots.csv"
 CELLS_FILE = "cells.csv"
@@ -100,16 +100,14 @@ class MerfishAdapter(SpatialAdapter):
         )
         label_layer = self._build_label_layer(cells, source, transform, local_frame)
         table_layer = self._build_table_layer(base, cells, counts, transform, local_frame)
-        table_path = table_layer.adata_path
-        if table_path is None:
+        if table_layer.adata_path is None:
             raise ValueError("MERFISH adapter failed to materialise an AnnData table.")
-        table_path = Path(table_path)
+        table_path = Path(table_layer.adata_path)
         if not table_path.exists():
             raise ValueError(f"AnnData table '{table_path}' was not created.")
         candidates = [
             base / SPOTS_FILE,
             image_path,
-            table_path,
         ]
         cells_file = base / CELLS_FILE
         if cells_file.exists():
@@ -235,7 +233,7 @@ class MerfishAdapter(SpatialAdapter):
         obs = cells.loc[counts.index][["cell_id", "x", "y"]]
         var = pd.DataFrame(index=counts.columns)
         adata = ad.AnnData(X=counts.astype(float).values, obs=obs.copy(), var=var)
-        adata_path = base / "spots.h5ad"
+        adata_path = temporary_output_path(stem="merfish-spots", suffix=".h5ad")
         adata.write(adata_path, compression="gzip")
         summary = dataframe_summary(obs.reset_index(drop=True))
         summary.update({"var_count": int(adata.n_vars), "adata_path": str(adata_path)})

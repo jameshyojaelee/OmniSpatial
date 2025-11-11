@@ -19,7 +19,13 @@ from omnispatial.core.model import (
     SpatialDataset,
     TableLayer,
 )
-from omnispatial.utils import dataframe_summary, polygons_from_wkt, read_image_any, read_table_csv
+from omnispatial.utils import (
+    dataframe_summary,
+    polygons_from_wkt,
+    read_image_any,
+    read_table_csv,
+    temporary_output_path,
+)
 
 CELLS_FILE = "cells.csv"
 MATRIX_FILE = "matrix.csv"
@@ -100,19 +106,19 @@ class XeniumAdapter(SpatialAdapter):
         image_layer = self._build_image_layer(image_path, image_data, transform, local_frame)
         label_layer = self._build_label_layer(cells, transform, local_frame)
         table_layer = self._build_table_layer(path, cells, matrix, transform, local_frame)
-        table_path = table_layer.adata_path
-        if table_path is None:
+        if table_layer.adata_path is None:
             raise ValueError("Xenium adapter failed to materialise an AnnData table.")
-        table_path = Path(table_path)
+        table_path = Path(table_layer.adata_path)
         if not table_path.exists():
             raise ValueError(f"AnnData table '{table_path}' was not created.")
-        candidates = [
+        provenance_sources = [
             path / CELLS_FILE,
             path / MATRIX_FILE,
             image_path,
-            table_path,
         ]
-        existing_sources = sorted({candidate.resolve() for candidate in candidates if candidate.exists()})
+        existing_sources = sorted(
+            {candidate.resolve() for candidate in provenance_sources if candidate.exists()}
+        )
         provenance = self.build_provenance(
             sources=[str(source) for source in existing_sources],
             extra={"table": table_path.name},
@@ -200,7 +206,7 @@ class XeniumAdapter(SpatialAdapter):
         obs = cells.loc[counts.index]
         var = pd.DataFrame(index=counts.columns)
         adata = ad.AnnData(X=counts.astype(float).values, obs=obs.copy(), var=var)
-        adata_path = base_path / "matrix.h5ad"
+        adata_path = temporary_output_path(stem="xenium-matrix", suffix=".h5ad")
         adata.write(adata_path, compression="gzip")
         summary = dataframe_summary(obs.reset_index(drop=True))
         summary.update({"var_count": int(adata.n_vars), "adata_path": str(adata_path)})

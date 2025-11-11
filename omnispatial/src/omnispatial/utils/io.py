@@ -5,6 +5,8 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 from typing import Iterable, List, Sequence, Tuple
+import tempfile
+import uuid
 
 import numpy as np
 import pandas as pd
@@ -136,6 +138,29 @@ def read_image_any(path: Path) -> Tuple[np.ndarray, dict]:
     raise ValueError(f"Unsupported image format for: {path}")
 
 
+_SCRATCH_DIR: Path | None = None
+
+
+def _ensure_scratch_dir() -> Path:
+    global _SCRATCH_DIR
+    if _SCRATCH_DIR is None:
+        scratch = Path(tempfile.mkdtemp(prefix="omnispatial-"))
+        _SCRATCH_DIR = scratch
+    return _SCRATCH_DIR
+
+
+def temporary_output_path(*, stem: str | None = None, suffix: str = "") -> Path:
+    """Return a unique path inside the OmniSpatial scratch directory."""
+    scratch_dir = _ensure_scratch_dir()
+    if stem:
+        candidate = scratch_dir / f"{stem}{suffix}"
+        if candidate.exists():
+            unique_stem = f"{stem}-{uuid.uuid4().hex}"
+            return scratch_dir / f"{unique_stem}{suffix}"
+        return candidate
+    return scratch_dir / f"{uuid.uuid4().hex}{suffix}"
+
+
 __all__ = [
     "dataframe_summary",
     "geometries_from_wkt",
@@ -146,4 +171,5 @@ __all__ = [
     "load_yaml",
     "read_table_csv",
     "read_image_any",
+    "temporary_output_path",
 ]

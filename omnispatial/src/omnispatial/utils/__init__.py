@@ -10,6 +10,7 @@ from .io import (
     polygons_from_wkt,
     read_image_any,
     read_table_csv,
+    temporary_output_path,
 )
 
 __all__ = [
@@ -22,4 +23,5 @@ __all__ = [
     "polygons_from_wkt",
     "read_image_any",
     "read_table_csv",
+    "temporary_output_path",
 ]

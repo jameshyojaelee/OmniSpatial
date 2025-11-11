@@ -21,7 +21,7 @@ from omnispatial.core.model import (
     SpatialDataset,
     TableLayer,
 )
-from omnispatial.utils import dataframe_summary, read_image_any, load_tabular_file
+from omnispatial.utils import dataframe_summary, read_image_any, load_tabular_file, temporary_output_path
 
 CELLS_FILE = "cells.parquet"
 EXPR_FILE = "expr.parquet"
@@ -98,19 +98,19 @@ class CosMxAdapter(SpatialAdapter):
         )
         label_layer = self._build_label_layer(stitched_cells, transform, local_frame)
         table_layer = self._build_table_layer(base, stitched_cells, expr, transform, local_frame)
-        table_path = table_layer.adata_path
-        if table_path is None:
+        if table_layer.adata_path is None:
             raise ValueError("CosMx adapter failed to materialise an AnnData table.")
-        table_path = Path(table_path)
+        table_path = Path(table_layer.adata_path)
         if not table_path.exists():
             raise ValueError(f"AnnData table '{table_path}' was not created.")
-        candidates = [
+        provenance_sources = [
             base / CELLS_FILE,
             base / EXPR_FILE,
             image_path,
-            table_path,
         ]
-        existing_sources = sorted({candidate.resolve() for candidate in candidates if candidate.exists()})
+        existing_sources = sorted(
+            {candidate.resolve() for candidate in provenance_sources if candidate.exists()}
+        )
         provenance = self.build_provenance(
             sources=[str(source) for source in existing_sources],
             extra={"table": table_path.name},
@@ -197,7 +197,7 @@ class CosMxAdapter(SpatialAdapter):
         obs = cells.loc[counts.index]
         var = pd.DataFrame(index=counts.columns)
         adata = ad.AnnData(X=counts.astype(float).values, obs=obs.copy(), var=var)
-        adata_path = base / "expr.h5ad"
+        adata_path = temporary_output_path(stem="cosmx-expr", suffix=".h5ad")
         adata.write(adata_path, compression="gzip")
         summary = dataframe_summary(obs.reset_index(drop=True))
         summary.update({"var_count": int(adata.n_vars), "adata_path": str(adata_path)})
