@@ -33,6 +33,10 @@ def test_xenium_adapter_round_trip(xenium_synthetic_dataset: Path) -> None:
 
     assert table_layer.summary["obs_count"] == 2
     assert table_layer.summary["var_count"] == 2
-    assert Path(table_layer.adata_path).exists()  # type: ignore[arg-type]
+    assert table_layer.adata_path is not None
+    adata_path = Path(table_layer.adata_path)
+    assert adata_path.exists()
     assert set(table_layer.var_columns) == {"G1", "G2"}
     assert {geom.area for geom in polygons} == {1.0}
+    assert not list(xenium_synthetic_dataset.glob("*.h5ad"))
+    assert not adata_path.resolve().is_relative_to(xenium_synthetic_dataset.resolve())

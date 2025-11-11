@@ -19,7 +19,7 @@ from omnispatial.core.model import (
     SpatialDataset,
     TableLayer,
 )
-from omnispatial.utils import dataframe_summary, load_tabular_file
+from omnispatial.utils import dataframe_summary, load_tabular_file, temporary_output_path
 
 OUTS_DIR_CANDIDATES = ("outs", ".", "output")
 MATRIX_FILES = ("filtered_feature_bc_matrix.h5",)
@@ -215,7 +215,7 @@ class VisiumHDAdapter(SpatialAdapter):
         local_frame: CoordinateFrame,
         transform: AffineTransform,
     ) -> TableLayer:
-        adata_path = base / "visium_hd_expr.h5ad"
+        adata_path = temporary_output_path(stem="visium-hd-expr", suffix=".h5ad")
         adata.write(adata_path, compression="gzip")
         summary = dataframe_summary(adata.obs.reset_index(drop=True))
         summary.update({"var_count": int(adata.n_vars), "adata_path": str(adata_path)})

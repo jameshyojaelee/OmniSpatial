@@ -19,7 +19,7 @@ from omnispatial.core.model import (
     SpatialDataset,
     TableLayer,
 )
-from omnispatial.utils import dataframe_summary, load_tabular_file, read_image_any
+from omnispatial.utils import dataframe_summary, load_tabular_file, read_image_any, temporary_output_path
 
 PIXEL_UNITS = "micrometer"
 PIXEL_SIZE = 0.75
@@ -120,10 +120,13 @@ class CosMxPublicAdapter(SpatialAdapter):
         )
         label_layer = self._build_label_layer(stitched_cells, transform, local_frame, source=cells_path.name)
         table_layer = self._build_table_layer(base, stitched_cells, expr, transform, local_frame)
+        table_path = Path(table_layer.adata_path) if table_layer.adata_path else None
+        if table_path is None or not table_path.exists():
+            raise ValueError("CosMx public adapter failed to materialise an AnnData table.")
 
         provenance = self.build_provenance(
             sources=[cells_path, expr_path, image_path],
-            extra={"release": "public", "table": "expr.h5ad"},
+            extra={"release": "public", "table": table_path.name},
         )
         return SpatialDataset(
             images=[image_layer],
@@ -253,7 +256,7 @@ class CosMxPublicAdapter(SpatialAdapter):
         obs = cells.loc[pivot.index]
         var = pd.DataFrame(index=pivot.columns)
         adata = ad.AnnData(X=pivot.astype(float).values, obs=obs.copy(), var=var)
-        adata_path = base / "expr.h5ad"
+        adata_path = temporary_output_path(stem="cosmx-public-expr", suffix=".h5ad")
         adata.write(adata_path, compression="gzip")
         summary = dataframe_summary(obs.reset_index(drop=True))
         summary.update({"var_count": int(adata.n_vars), "adata_path": str(adata_path)})

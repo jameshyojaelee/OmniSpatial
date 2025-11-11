@@ -30,6 +30,10 @@ def test_cosmx_adapter_applies_region_offsets(cosmx_synthetic_dataset: Path) -> 
     table_layer = dataset.tables[0]
     assert table_layer.summary["obs_count"] == 2
     assert table_layer.summary["var_count"] == 2
-    assert Path(table_layer.adata_path).exists()  # type: ignore[arg-type]
+    assert table_layer.adata_path is not None
+    adata_path = Path(table_layer.adata_path)
+    assert adata_path.exists()
     assert set(table_layer.var_columns) == {"T1", "T2"}
     assert table_layer.coordinate_columns == ("x", "y")
+    assert not list(cosmx_synthetic_dataset.glob("*.h5ad"))
+    assert not adata_path.resolve().is_relative_to(cosmx_synthetic_dataset.resolve())

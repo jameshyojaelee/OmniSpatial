@@ -33,7 +33,9 @@ def test_merfish_adapter_bins_and_counts(merfish_synthetic_dataset: Path) -> Non
 
     table_layer = dataset.tables[0]
     assert table_layer.summary["obs_count"] == 2
-    assert Path(table_layer.adata_path).exists()  # type: ignore[arg-type]
+    assert table_layer.adata_path is not None
+    adata_path = Path(table_layer.adata_path)
+    assert adata_path.exists()
 
     adata = ad.read_h5ad(table_layer.adata_path)
     spots = pd.read_csv(merfish_synthetic_dataset / "spots.csv")
@@ -41,3 +43,5 @@ def test_merfish_adapter_bins_and_counts(merfish_synthetic_dataset: Path) -> Non
     assert np.isclose(float(adata.X.sum()), total_intensity)
     assert set(adata.var_names) == set(spots["gene"])
     assert adata.n_obs == len(polygons)
+    assert not list(merfish_synthetic_dataset.glob("*.h5ad"))
+    assert not adata_path.resolve().is_relative_to(merfish_synthetic_dataset.resolve())
